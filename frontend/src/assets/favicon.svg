@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="32px" height="32px" viewBox="0 0 32 32" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+    <title>Crime Analysis System</title>
+    <g stroke="none" stroke-width="1" fill="none" fill-rule="evenodd">
+        <rect fill="#2563EB" x="0" y="0" width="32" height="32" rx="4"></rect>
+        <path d="M16,6 C19.866,6 23,9.13401 23,13 C23,15.3488 21.9073,17.4456 20.2122,18.6955 L20,18.83 L20,20 L24,23 L24,25 L8,25 L8,23 L12,20 L12,18.83 C10.221,17.5546 9.05047,15.3789 9.00156,12.9355 L9,12.8 L9,13 C9,9.13401 12.134,6 16,6 Z M16,8 C13.2386,8 11,10.2386 11,13 C11,15.7614 13.2386,18 16,18 C18.7614,18 21,15.7614 21,13 C21,10.2386 18.7614,8 16,8 Z" fill="#FFFFFF"></path>
+    </g>
+</svg>
