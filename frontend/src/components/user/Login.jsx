@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../common/Card';
@@ -10,8 +10,9 @@ const Login = () => {
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const hasRedirected = useRef(false);
   
-  const { login, isAuthenticated, error: authError } = useAuth();
+  const { login, isAuthenticated, loading, error: authError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -20,10 +21,11 @@ const Login = () => {
   
   // Redirect if already authenticated
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthenticated && !loading && !hasRedirected.current) {
+      hasRedirected.current = true;
       navigate(from, { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, loading, navigate, from]);
   
   const validateForm = () => {
     const newErrors = {};

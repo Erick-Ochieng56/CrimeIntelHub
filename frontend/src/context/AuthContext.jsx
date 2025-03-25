@@ -1,4 +1,3 @@
-// AuthContext.jsx
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import { loginUser, registerUser, getCurrentUser, logoutUser } from '../services/auth';
 
@@ -14,27 +13,43 @@ export function AuthProvider({ children }) {
   
   // Initialize auth state by checking for existing token/session
   useEffect(() => {
+    let isMounted = true;
+    
     const initializeAuth = async () => {
       try {
         const token = localStorage.getItem('token') || sessionStorage.getItem('token');
         if (token) {
           const userData = await getCurrentUser();
-          setUser(userData);
-          setIsAuthenticated(true);
+          
+          // Only update state if component is still mounted
+          if (isMounted) {
+            setUser(userData);
+            setIsAuthenticated(true);
+          }
         }
       } catch (error) {
         console.error('Authentication initialization error:', error);
         // Clear invalid token/session
         localStorage.removeItem('token');
         sessionStorage.removeItem('token');
-        setIsAuthenticated(false);
-        setUser(null);
+        
+        if (isMounted) {
+          setIsAuthenticated(false);
+          setUser(null);
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     initializeAuth();
+    
+    // Cleanup function to prevent updates on unmounted component
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Login function
