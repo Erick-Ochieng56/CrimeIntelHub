@@ -52,7 +52,7 @@ class CrimeNoteSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class CrimeListSerializer(GeoFeatureModelSerializer):
+class CrimeListSerializer(serializers.ModelSerializer):
     """Serializer for listing crimes with location."""
 
     category_name = serializers.CharField(source='category.name', read_only=True)
@@ -61,7 +61,6 @@ class CrimeListSerializer(GeoFeatureModelSerializer):
 
     class Meta:
         model = Crime
-        geo_field = 'location'
         fields = (
             'id', 'case_number', 'category', 'category_name', 'description', 
             'date', 'time', 'status', 'block_address', 'district', 'neighborhood',
@@ -73,7 +72,6 @@ class CrimeListSerializer(GeoFeatureModelSerializer):
 
     def get_longitude(self, obj):
         return obj.location.x if obj.location else None
-
 
 class CrimeDetailSerializer(GeoFeatureModelSerializer):
     """Serializer for detailed crime information."""

@@ -202,3 +202,13 @@ class UserPreferenceView(generics.RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
+    
+    
+class UserMeView(generics.RetrieveAPIView):
+    """API endpoint to get current authenticated user."""
+    serializer_class = UserSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_object(self):
+        """Return the authenticated user."""
+        return self.request.user

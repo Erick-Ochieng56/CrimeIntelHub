@@ -17,6 +17,9 @@ urlpatterns = [
     path('change-password/', views.ChangePasswordView.as_view(), name='change_password'),
     path('request-password-reset/', views.PasswordResetRequestView.as_view(), name='request_password_reset'),
     path('confirm-password-reset/', views.PasswordResetConfirmView.as_view(), name='confirm_password_reset'),
+    
+        # User me endpoint
+    path('me/', views.UserMeView.as_view(), name='user_me'),
 
     # Profile management
     path('profile/', views.UserProfileView.as_view(), name='profile'),

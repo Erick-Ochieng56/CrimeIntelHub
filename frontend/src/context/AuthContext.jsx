@@ -56,14 +56,15 @@ export function AuthProvider({ children }) {
   const login = useCallback(async (username, password, rememberMe = false) => {
     setError(null);
     try {
-      const { user, token } = await loginUser(username, password);
+      // Expect the loginUser function to return { user, access }
+      const { user, access } = await loginUser(username, password);
       
       // Store token based on remember me option
       if (rememberMe) {
-        localStorage.setItem('token', token);
+        localStorage.setItem('token', access);
         sessionStorage.removeItem('token'); // Clear session storage if exists
       } else {
-        sessionStorage.setItem('token', token);
+        sessionStorage.setItem('token', access);
         localStorage.removeItem('token'); // Clear local storage if exists
       }
       
@@ -81,10 +82,11 @@ export function AuthProvider({ children }) {
   const register = useCallback(async (userData) => {
     setError(null);
     try {
-      const { user, token } = await registerUser(userData);
+      // Expect the registerUser function to return { user, access }
+      const { user, access } = await registerUser(userData);
       
       // Store token in local storage
-      localStorage.setItem('token', token);
+      localStorage.setItem('token', access);
       
       setUser(user);
       setIsAuthenticated(true);

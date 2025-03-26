@@ -84,9 +84,10 @@ export const getCrimeStats = async (params = {}) => {
   };
   
   try {
-    const response = await api.get('/crimes/stats/', { params: apiParams });
+    const response = await api.get('/crimes/statistics/', { params: apiParams });
     return response.data;
   } catch (error) {
+    console.error('Crime stats error:', error);
     throw new Error(error.formattedMessage || 'Failed to fetch crime statistics');
   }
 };
@@ -95,25 +96,46 @@ export const getCrimeStats = async (params = {}) => {
  * Get crime trends over time
  * 
  * @param {Object} params - Filter parameters
+ * @param {number} params.months - Number of months to look back (default is 12)
+ * @param {Object} params.location - Contains latitude and longitude
+ * @param {number} params.location.latitude - Latitude value
+ * @param {number} params.location.longitude - Longitude value
+ * @param {number} params.radius - Search radius in km
  * @returns {Promise<Object>} Crime trends data
  */
 export const getCrimeTrends = async (params = {}) => {
-  // Format parameters
+  // Ensure all parameters are converted to strings
   const apiParams = {
-    time_frame: params.timeFrame,
-    crime_types: params.crimeTypes?.join(','),
-    start_date: params.startDate ? params.startDate.toISOString().split('T')[0] : undefined,
-    end_date: params.endDate ? params.endDate.toISOString().split('T')[0] : undefined,
-    lat: params.location?.latitude,
-    lng: params.location?.longitude,
-    radius: params.radius,
+    months: params.months ? params.months.toString() : '12', // default to 12 months
+    lat: params.location?.latitude ? params.location.latitude.toString() : undefined,
+    lng: params.location?.longitude ? params.location.longitude.toString() : undefined,
+    radius: params.radius ? params.radius.toString() : undefined,
   };
   
+  // Remove undefined parameters
+  Object.keys(apiParams).forEach(key => apiParams[key] === undefined && delete apiParams[key]);
+  
   try {
+    // Use verbose error logging
+    console.log('Fetching crime trends with params:', apiParams);
+    
     const response = await api.get('/crimes/trends/', { params: apiParams });
+    
+    console.log('Crime trends response:', response.data);
     return response.data;
   } catch (error) {
-    throw new Error(error.formattedMessage || 'Failed to fetch crime trends');
+    console.error('Detailed crime trends error:', {
+      message: error.message,
+      response: error.response?.data,
+      status: error.response?.status,
+      params: apiParams
+    });
+    
+    throw new Error(
+      error.response?.data?.detail || 
+      error.message || 
+      'Failed to fetch crime trends'
+    );
   }
 };
 
@@ -128,16 +150,17 @@ export const getCrimeHeatmapData = async (params = {}) => {
   const apiParams = {
     start_date: params.startDate,
     end_date: params.endDate,
-    crime_types: params.crimeTypes,
+    crime_types: params.crimeTypes?.join(','),
     lat: params.lat,
     lng: params.lng,
     radius: params.radius,
   };
   
   try {
-    const response = await api.get('/analytics/heatmap/', { params: apiParams });
+    const response = await api.get('/analytics/hotspots/', { params: apiParams });
     return response.data;
   } catch (error) {
+    console.error('Heatmap error:', error);
     throw new Error(error.formattedMessage || 'Failed to fetch heatmap data');
   }
 };
@@ -159,13 +182,13 @@ export const getTimeSeriesData = async (params = {}) => {
   };
   
   try {
-    const response = await api.get('/analytics/timeseries/', { params: apiParams });
+    const response = await api.get('/analytics/patterns/', { params: apiParams });
     return response.data;
   } catch (error) {
+    console.error('Time series error:', error);
     throw new Error(error.formattedMessage || 'Failed to fetch time series data');
   }
 };
-
 /**
  * Get predictive analysis
  * 
@@ -182,7 +205,7 @@ export const getPredictiveAnalysis = async (params = {}) => {
   };
   
   try {
-    const response = await api.get('/analytics/predict/', { params: apiParams });
+    const response = await api.get('/analytics/predictions/', { params: apiParams });
     return response.data;
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to fetch predictive analysis');

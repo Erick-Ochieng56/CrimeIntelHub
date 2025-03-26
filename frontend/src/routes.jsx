@@ -1,5 +1,9 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { useContext } from 'react';
+import { useLocation } from 'react-router-dom';
+import { AuthContext } from './context/AuthContext';
+import { CrimeDataProvider } from './context/CrimeDataContext'; // Import CrimeDataProvider
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -19,10 +23,17 @@ import PasswordReset from './components/user/PasswordReset';
 
 // Auth guard component
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = localStorage.getItem('token') !== null;
+  const { isAuthenticated, loading } = useContext(AuthContext);
+  const location = useLocation();
+  
+  // Show loading indicator while authentication state is being determined
+  if (loading) {
+    return <div>Loading...</div>; // Or any loading component
+  }
   
   if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
+    // Save the attempted URL for redirecting after login
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   
   return children;
@@ -41,7 +52,9 @@ const routes = [
     path: '/dashboard',
     element: (
       <ProtectedRoute>
-        <DashboardPage />
+        <CrimeDataProvider>
+          <DashboardPage />
+        </CrimeDataProvider>
       </ProtectedRoute>
     ),
   },
@@ -62,7 +75,7 @@ const routes = [
     ),
   },
   {
-    path: '/reports',
+    path: '/reports/*',
     element: (
       <ProtectedRoute>
         <ReportsPage />

@@ -46,6 +46,27 @@ class HotspotZone(gis_models.Model):
     def __str__(self):
         return f"{self.name} ({self.start_date} to {self.end_date})"
 
+class CrimeTrend(gis_models.Model):
+    """Model for crime trends."""
+    crime_type = models.ForeignKey(CrimeCategory, on_delete=models.CASCADE, 
+                                  related_name='trends')
+    trend_data = models.JSONField(default=dict)
+    start_date = models.DateField()
+    end_date = models.DateField()
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, 
+                                blank=True, related_name='trends')
+    neighborhood = models.ForeignKey(Neighborhood, on_delete=models.SET_NULL, null=True, 
+                                    blank=True, related_name='trends')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name_plural = 'Crime trends'
+
+    def __str__(self):
+        return f"{self.crime_type} trend ({self.start_date} to {self.end_date})"
+
 class CrimePrediction(gis_models.Model):
     """Model for predicted crime incidents."""
     location = gis_models.PointField(geography=True)
@@ -117,3 +138,26 @@ class DemographicCorrelation(models.Model):
 
     def __str__(self):
         return f"{self.crime_type} correlation with {self.demographic_factor}"
+    
+class CrimeIncident(models.Model):
+    """Model for storing crime incidents."""
+    location = gis_models.PointField(geography=True)
+    incident_date = models.DateTimeField()
+    description = models.TextField()
+    crime_type = models.ForeignKey(CrimeCategory, on_delete=models.CASCADE, 
+                                   related_name='incidents')
+    district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, 
+                                related_name='incidents')
+    neighborhood = models.ForeignKey(Neighborhood, on_delete=models.SET_NULL, null=True, 
+                                    blank=True, related_name='incidents')
+    reported_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, 
+                                  blank=True, related_name='reported_incidents')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-incident_date']
+        verbose_name_plural = 'Crime incidents'
+
+    def __str__(self):
+        return f"{self.crime_type} incident on {self.incident_date}"
+

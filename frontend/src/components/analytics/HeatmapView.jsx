@@ -146,11 +146,11 @@ const HeatmapView = () => {
       
       // Transform data to format required by leaflet.heat
       // [lat, lng, intensity]
-      const heatPoints = data.map(point => [
+      const heatPoints = Array.isArray(data) ? data.map(point => [
         point.latitude,
         point.longitude,
         point.weight || 1 // Use weight if available, otherwise default to 1
-      ]);
+      ]): [];
       
       setHeatmapData(heatPoints);
     } catch (err) {

@@ -60,11 +60,18 @@ export const registerUser = async (userData) => {
  */
 export const logoutUser = async () => {
   try {
-    await api.post('/auth/logout/');
+    const refreshToken = localStorage.getItem('refresh_token');
+    
+    if (!refreshToken) {
+      console.error('No refresh token found');
+      return false;
+    }
+    
+    await api.post('/auth/logout/', { refresh: refreshToken });
     return true;
   } catch (error) {
-    console.error('Logout error:', error);
-    // Just log error but don't throw since we want to clear local state anyway
+    console.error('Logout error:', error.response?.data || error.message);
+    return false;
   }
 };
 

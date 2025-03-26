@@ -17,7 +17,7 @@ from .models import (
     CrimeMedia, CrimeNote, CrimeStatistic
 )
 from .serializers import (
-    CrimeCategorySerializer, DistrictSerializer, NeighborhoodSerializer,
+    CrimeCategorySerializer, CrimeMediaSerializer, CrimeNoteSerializer, DistrictSerializer, NeighborhoodSerializer,
     CrimeListSerializer, CrimeDetailSerializer, CrimeCreateSerializer,
     CrimeStatisticSerializer, CrimeHeatmapSerializer, CrimeSearchSerializer,
     CrimeStatResponseSerializer
@@ -85,35 +85,54 @@ class CrimeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get crime statistics."""
-        # Get time range parameters (default: last 30 days)
-        days = int(request.query_params.get('days', 30))
-        end_date = datetime.date.today()
-        start_date = end_date - datetime.timedelta(days=days)
-        previous_start_date = start_date - datetime.timedelta(days=days)
+        # Parse time_frame parameter
+        time_frame = request.query_params.get('time_frame', 'last30Days')
+        crime_types = request.query_params.get('crime_types', '').split(',')
+        radius = request.query_params.get('radius', 5)
 
-        # Filter for geographical area if specified
+        # Set date range based on time_frame
+        end_date = datetime.date.today()
+        if time_frame == 'last30Days':
+            start_date = end_date - datetime.timedelta(days=30)
+            previous_start_date = start_date - datetime.timedelta(days=30)
+        elif time_frame == 'last90Days':
+            start_date = end_date - datetime.timedelta(days=90)
+            previous_start_date = start_date - datetime.timedelta(days=90)
+        elif time_frame == 'thisYear':
+            start_date = datetime.date(end_date.year, 1, 1)
+            previous_start_date = datetime.date(end_date.year - 1, 1, 1)
+        else:
+            # Default to last 30 days
+            start_date = end_date - datetime.timedelta(days=30)
+            previous_start_date = start_date - datetime.timedelta(days=30)
+
+        # Filter for geographical area if radius is provided
+        area_filter = Q()
         lat = request.query_params.get('lat')
         lng = request.query_params.get('lng')
-        radius = request.query_params.get('radius')
-        area_filter = Q()
-        if lat and lng and radius:
+        if lat and lng:
             try:
                 point = Point(float(lng), float(lat))
                 area_filter = Q(location__dwithin=(point, D(km=float(radius))))
             except (ValueError, TypeError):
                 pass
 
+        # Filter by crime types if specified and not empty
+        type_filter = Q()
+        if crime_types and crime_types[0]:
+            type_filter = Q(category__name__in=crime_types)
+
         # Get crimes in current period
         current_crimes = Crime.objects.filter(
             date__gte=start_date,
             date__lte=end_date
-        ).filter(area_filter)
+        ).filter(area_filter).filter(type_filter)
 
         # Get crimes in previous period
         previous_crimes = Crime.objects.filter(
             date__gte=previous_start_date,
             date__lt=start_date
-        ).filter(area_filter)
+        ).filter(area_filter).filter(type_filter)
 
         # Calculate statistics
         stats = {
@@ -313,4 +332,24 @@ class CrimeStatisticViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['date', 'category', 'district', 'neighborhood', 'agency']
     ordering_fields = ['date', 'count', 'violent_count', 'arrests']
+    ordering = ['-date']
+    
+class CrimeMediaViewSet(viewsets.ModelViewSet):
+    """API endpoint for crime media."""
+
+    queryset = CrimeMedia.objects.all()
+    serializer_class = CrimeMediaSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['crime']
+    ordering_fields = ['date', 'type']
+    ordering = ['-date']
+
+class CrimeNoteViewSet(viewsets.ModelViewSet):
+    """API endpoint for crime notes."""
+
+    queryset = CrimeNote.objects.all()
+    serializer_class = CrimeNoteSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['crime']
+    ordering_fields = ['date']
     ordering = ['-date']

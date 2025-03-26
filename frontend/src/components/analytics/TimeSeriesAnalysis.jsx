@@ -53,6 +53,7 @@ const TimeSeriesAnalysis = () => {
   useEffect(() => {
     if (!timeSeriesData || !chartRef.current) return;
     
+    
     // Destroy existing chart if it exists
     if (chartInstance.current) {
       chartInstance.current.destroy();
@@ -205,6 +206,7 @@ const TimeSeriesAnalysis = () => {
   };
   
   // Fetch time series data
+  // Fetch time series data with improved error handling
   const fetchTimeSeriesData = async () => {
     try {
       setLoading(true);
@@ -217,7 +219,7 @@ const TimeSeriesAnalysis = () => {
       };
       
       if (selectedCrimeTypes.length > 0) {
-        params.crimeTypes = selectedCrimeTypes.join(',');
+        params.crimeTypes = selectedCrimeTypes;
       }
       
       if (selectedLocation !== 'all') {
@@ -225,10 +227,21 @@ const TimeSeriesAnalysis = () => {
       }
       
       const data = await getTimeSeriesData(params);
+      
+      // Validate data structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data format received');
+      }
+
+      // Additional validation for series data
+      if (!data.series || typeof data.series !== 'object') {
+        throw new Error('No series data available');
+      }
+
       setTimeSeriesData(data);
     } catch (err) {
       console.error('Error fetching time series data:', err);
-      setError('Failed to load time series data. Please try again later.');
+      setError(err.message || 'Failed to load time series data. Please try again later.');
     } finally {
       setLoading(false);
     }
@@ -243,27 +256,44 @@ const TimeSeriesAnalysis = () => {
   };
   
   // Calculate percentage change from first to last period
-  const calculateTrend = (series) => {
-    if (!series || series.length < 2) return { value: 0, increasing: false };
-    
-    const first = series[0];
-    const last = series[series.length - 1];
-    
-    if (first === 0) return { value: last > 0 ? 100 : 0, increasing: last > 0 };
-    
-    const percentChange = ((last - first) / first) * 100;
-    return {
-      value: Math.abs(percentChange.toFixed(1)),
-      increasing: percentChange > 0
+    // Robust trend calculation with more error handling
+    const calculateTrend = (series) => {
+      // Ensure series is an array and has at least two elements
+      if (!Array.isArray(series) || series.length < 2) {
+        return { value: 0, increasing: false };
+      }
+      
+      const first = series[0];
+      const last = series[series.length - 1];
+      
+      // Handle potential non-numeric values
+      if (typeof first !== 'number' || typeof last !== 'number') {
+        return { value: 0, increasing: false };
+      }
+      
+      if (first === 0) {
+        return { 
+          value: last > 0 ? 100 : 0, 
+          increasing: last > 0 
+        };
+      }
+      
+      const percentChange = ((last - first) / first) * 100;
+      return {
+        value: Math.abs(percentChange.toFixed(1)),
+        increasing: percentChange > 0
+      };
     };
-  };
   
-  // Calculate total incidents
+  // Robust total calculation
   const calculateTotal = (series) => {
-    if (!series) return 0;
-    return series.reduce((sum, val) => sum + val, 0);
+    if (!Array.isArray(series)) return 0;
+    
+    return series.reduce((sum, val) => {
+      // Ensure we're only adding numeric values
+      return sum + (typeof val === 'number' ? val : 0);
+    }, 0);
   };
-  
   return (
     <div className="space-y-6">
       <Card>
@@ -405,13 +435,19 @@ const TimeSeriesAnalysis = () => {
         </div>
       </Card>
       
-      {timeSeriesData && (
+      {timeSeriesData && 
+       timeSeriesData.series && 
+       Object.keys(timeSeriesData.series).length > 0 && (
         <Card>
           <div className="p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Time Series Analysis Summary</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               {Object.entries(timeSeriesData.series).map(([crimeType, data]) => {
+
+                // Additional null check
+                if (!data) return null;
+                
                 const trend = calculateTrend(data);
                 const total = calculateTotal(data);
                 
