@@ -25,8 +25,13 @@ const AlertList = () => {
       setLoading(true);
       setError(null);
       const data = await getAlerts();
-      console.log('Alerts data type:', typeof data, 'Data:', data);
-      setAlerts(data);
+      
+      // Ensure data is an array before setting state
+      if (Array.isArray(data)) {
+        setAlerts(data);
+      } else {
+        setError('Received invalid data format');
+      }
     } catch (err) {
       console.error('Error fetching alerts:', err);
       setError('Failed to load alerts. Please try again later.');

@@ -5,15 +5,38 @@ import api from './api';
  * 
  * @returns {Promise<Array>} Array of alert objects
  */
+
 export const getAlerts = async () => {
   try {
+    console.log('Attempting to fetch alerts');
     const response = await api.get('/alerts/');
+    
+    console.log('Full response:', response);
+    console.log('Response data:', response.data);
+    console.log('Response data type:', typeof response.data);
+    
+    // If the alerts are at a different endpoint, fetch them directly
+    if (response.data.alerts && typeof response.data.alerts === 'string') {
+      const alertsResponse = await api.get(response.data.alerts);
+      return alertsResponse.data;
+    }
+    
+    // Fallback to handling different response structures
     const data = response.data;
-    return Array.isArray(data) ? data : (data.alerts || []);
+    
+    if (!data) {
+      console.error('No data received from API');
+      return [];
+    }
+    
+    return Array.isArray(data) ? data : [];
   } catch (error) {
+    console.error('Detailed error in getAlerts:', error);
+    console.error('Error response:', error.response);
     throw new Error(error.formattedMessage || 'Failed to fetch alerts');
   }
 };
+
 
 /**
  * Get a single alert by ID
