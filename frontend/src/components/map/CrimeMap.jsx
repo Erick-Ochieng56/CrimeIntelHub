@@ -113,6 +113,14 @@ const CrimeMap = () => {
         }
         
         const data = await getCrimes(params);
+
+              // Add these debug logs
+        console.log('Fetched crime data:', data);
+        console.log('Type of data:', typeof data);
+        console.log('Is array:', Array.isArray(data));
+        console.log('Is empty:', data.length === 0);
+        console.log('Is not empty:', data.length > 0);
+
         setCrimes(data);
         setError(null);
       } catch (err) {
@@ -167,7 +175,7 @@ const CrimeMap = () => {
               return ClusterMarker(cluster, crimes);
             }}
           >
-            {crimes.map((crime) => (
+            {Array.isArray((crime) => (
               <Marker
                 key={crime.id}
                 position={[crime.latitude, crime.longitude]}

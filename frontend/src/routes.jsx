@@ -67,7 +67,7 @@ const routes = [
     ),
   },
   {
-    path: '/alerts',
+    path: '/alerts/*',
     element: (
       <ProtectedRoute>
         <AlertsPage />

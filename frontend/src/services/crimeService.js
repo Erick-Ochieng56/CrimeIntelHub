@@ -15,8 +15,10 @@ import api from './api';
 export const getCrimes = async (params = {}) => {
   try {
     const response = await api.get('/crimes/', { params });
-    return response.data;
+    // Ensure response.data is an array
+    return Array.isArray(response.data) ? response.data : [];
   } catch (error) {
+    console.error('Crime fetch error:', error);
     throw new Error(error.formattedMessage || 'Failed to fetch crime data');
   }
 };

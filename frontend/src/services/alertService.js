@@ -8,7 +8,8 @@ import api from './api';
 export const getAlerts = async () => {
   try {
     const response = await api.get('/alerts/');
-    return response.data;
+    const data = response.data;
+    return Array.isArray(data) ? data : (data.alerts || []);
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to fetch alerts');
   }

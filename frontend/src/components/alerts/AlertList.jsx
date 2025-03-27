@@ -25,6 +25,7 @@ const AlertList = () => {
       setLoading(true);
       setError(null);
       const data = await getAlerts();
+      console.log('Alerts data type:', typeof data, 'Data:', data);
       setAlerts(data);
     } catch (err) {
       console.error('Error fetching alerts:', err);
