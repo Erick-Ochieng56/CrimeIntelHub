@@ -13,6 +13,8 @@ router.register('predictions', views.CrimePredictionViewSet, basename='predictio
 router.register('patterns', views.PatternAnalysisViewSet, basename='pattern')
 router.register('demographics', views.DemographicCorrelationViewSet, basename='demographic')
 
+# In your urls.py
+router.register(r'crime-predictions', views.CrimePredictionViewSet, basename='crime-predictions')
 urlpatterns = [
     path('', include(router.urls)),
     # For future custom non-ViewSet endpoints

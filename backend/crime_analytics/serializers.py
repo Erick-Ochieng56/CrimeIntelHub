@@ -78,3 +78,49 @@ class DemographicCorrelationSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+        
+        
+
+# First, let's create a simplified serializer that returns flat data, not GeoJSON
+class PredictiveAnalysisResultSerializer(serializers.ModelSerializer):
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
+    crimeType = serializers.SerializerMethodField()
+    probability = serializers.FloatField(source='confidence')
+    date = serializers.DateField(source='prediction_date')
+    factors = serializers.SerializerMethodField()
+    timeOfDay = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = CrimePrediction
+        fields = [
+            'latitude', 'longitude', 'crimeType', 'probability', 
+            'date', 'factors', 'timeOfDay'
+        ]
+    
+    def get_latitude(self, obj):
+        if obj.location:
+            return obj.location.y
+        return None
+    
+    def get_longitude(self, obj):
+        if obj.location:
+            return obj.location.x
+        return None
+    
+    def get_crimeType(self, obj):
+        if obj.crime_type:
+            return obj.crime_type.name
+        return "All Crimes"
+    
+    def get_factors(self, obj):
+        # Extract factors from the features JSON field
+        if obj.features and isinstance(obj.features, dict):
+            return list(obj.features.keys())
+        return []
+    
+    def get_timeOfDay(self, obj):
+        # Assuming you might have time_of_day in features
+        if obj.features and isinstance(obj.features, dict) and 'time_of_day' in obj.features:
+            return obj.features['time_of_day']
+        return "All Day"

@@ -66,6 +66,14 @@ class ReportViewSet(viewsets.ModelViewSet):
             as_attachment=True,
             filename=os.path.basename(report.file_path)
         )
+    # Add this action method to your ReportViewSet class in views.py
+    @action(detail=False, methods=['get'])
+    def history(self, request):
+       """Get report history for the current user."""
+       queryset = self.get_queryset()
+       # You can apply additional filtering here if needed
+       serializer = self.get_serializer(queryset, many=True)
+       return Response(serializer.data)
 
 class ReportTemplateViewSet(viewsets.ModelViewSet):
     """API endpoint for report templates."""

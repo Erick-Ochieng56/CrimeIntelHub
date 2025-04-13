@@ -15,4 +15,6 @@ router.register(r'statistics', views.CrimeStatisticViewSet, basename='statistics
 urlpatterns = [
     path('', include(router.urls)),
     path('trends/', views.CrimeViewSet.as_view({'get': 'trends'}), name='crime-trends'),
+    path('statistics/', views.CrimeStatisticViewSet.as_view({'get': 'list'}), name='crime-statistics'),
+    path('public/crimes/', views.public_crimes, name='public-crimes'),
 ]

@@ -199,3 +199,11 @@ class CrimeStatResponseSerializer(serializers.Serializer):
             'previous_property_crimes', 'arrests', 'previous_arrests',
             'top_crimes'
         )
+        
+        
+class PublicCrimeSerializer(serializers.ModelSerializer):
+    """Limited serializer for public crime data."""
+    
+    class Meta:
+        model = Crime
+        fields = ('id', 'category', 'date', 'block_address', 'is_violent')

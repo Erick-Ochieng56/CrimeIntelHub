@@ -10,6 +10,14 @@ from django.contrib.gis.measure import D
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.decorators import api_view, permission_classes,throttle_classes
+from rest_framework.permissions import AllowAny
+
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
+from rest_framework.throttling import AnonRateThrottle
+
+
 from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 from .models import (
@@ -353,3 +361,39 @@ class CrimeNoteViewSet(viewsets.ModelViewSet):
     filterset_fields = ['crime']
     ordering_fields = ['date']
     ordering = ['-date']
+    
+# New public endpoint that doesn't require authentication
+@api_view(['GET'])
+@permission_classes([AllowAny])  # Explicitly allow anyone to access
+@throttle_classes([AnonRateThrottle])  # Add rate limiting
+@method_decorator(cache_page(60 * 15))  # Cache for 15 minutes
+def public_crimes(request):
+    lat = request.query_params.get('lat')
+    lng = request.query_params.get('lng')
+    radius = request.query_params.get('radius', 5)  # Default radius: 5km
+    
+    if not lat or not lng:
+        return Response({"error": "Latitude and longitude are required"}, status=400)
+    
+    try:
+        lat = float(lat)
+        lng = float(lng)
+        radius = float(radius)
+        
+        # For a basic implementation using Django's database functions
+        # Note: This example assumes you're using GeoDjango with spatial database
+        from django.contrib.gis.geos import Point
+        from django.contrib.gis.measure import D
+        
+        user_location = Point(lng, lat)
+        crimes = Crime.objects.filter(
+            location__distance_lte=(user_location, D(km=radius))
+        ).order_by('id')[:100]  # Limit to 100 results for public API
+        
+        serializer = CrimeListSerializer(crimes, many=True)
+        return Response(serializer.data)
+        
+    except ValueError:
+        return Response({"error": "Invalid coordinates or radius"}, status=400)
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)

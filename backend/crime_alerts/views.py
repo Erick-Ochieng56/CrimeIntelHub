@@ -17,7 +17,7 @@ class AlertViewSet(viewsets.ModelViewSet):
     serializer_class = AlertSerializer
     permission_classes = [permissions.IsAuthenticated]
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['is_active', 'crime_type']
+    filterset_fields = ['is_active', 'crime_types']
     search_fields = ['name', 'location']
     
     def get_queryset(self):
