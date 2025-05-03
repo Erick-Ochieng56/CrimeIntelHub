@@ -20,21 +20,35 @@ class CrimeCategorySerializer(serializers.ModelSerializer):
 
 class DistrictSerializer(GeoFeatureModelSerializer):
     """Serializer for the District model."""
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = District
-        geo_field = 'boundary'
-        fields = ('id', 'name', 'code', 'boundary', 'agency', 'population', 'description')
+        geo_field = 'location'
+        fields = ('id', 'name', 'code', 'location', 'agency', 'population', 'description', 'latitude', 'longitude')
 
+    def get_latitude(self, obj):
+        return obj.location.y if obj.location else None
+
+    def get_longitude(self, obj):
+        return obj.location.x if obj.location else None
 
 class NeighborhoodSerializer(GeoFeatureModelSerializer):
     """Serializer for the Neighborhood model."""
+    latitude = serializers.SerializerMethodField()
+    longitude = serializers.SerializerMethodField()
 
     class Meta:
         model = Neighborhood
-        geo_field = 'boundary'
-        fields = ('id', 'name', 'boundary', 'district', 'population', 'description')
+        geo_field = 'location'
+        fields = ('id', 'name', 'location', 'district', 'population', 'description', 'latitude', 'longitude')
 
+    def get_latitude(self, obj):
+        return obj.location.y if obj.location else None
+
+    def get_longitude(self, obj):
+        return obj.location.x if obj.location else None
 
 class CrimeMediaSerializer(serializers.ModelSerializer):
     """Serializer for the CrimeMedia model."""
@@ -110,6 +124,7 @@ class CrimeCreateSerializer(serializers.ModelSerializer):
 
     latitude = serializers.FloatField(write_only=True)
     longitude = serializers.FloatField(write_only=True)
+    category = serializers.PrimaryKeyRelatedField(queryset=CrimeCategory.objects.all())
 
     class Meta:
         model = Crime

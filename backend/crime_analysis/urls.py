@@ -77,12 +77,12 @@ def home_page(request):
         
         <div class="endpoint">
             <h3><a href="/api/auth/">Authentication API</a></h3>
-            <p>User authentication and profile management</p>
+            <p>User authentication, registration, and profile management (includes /auth/admin-login/, /auth/agency-login/, /agencies/register/)</p>
         </div>
         
         <div class="endpoint">
             <h3><a href="/api/agencies/">Agencies API</a></h3>
-            <p>Law enforcement agency data</p>
+            <p>Law enforcement agency management and data import</p>
         </div>
         
         <div class="endpoint">
@@ -142,15 +142,13 @@ urlpatterns = [
     path('redoc/', schema_view.with_ui('redoc', cache_timeout=0), name='schema-redoc'),
     
     # API endpoints for each app
-    path('api/auth/', include('accounts.urls')),
-    path('api/agencies/', include('agencies.urls')),
-    path('api/crimes/', include('crimes.urls')),
-    
-    # New app endpoints
-    path('api/analytics/', include('crime_analytics.urls')),
-    path('api/alerts/', include('crime_alerts.urls')),
-    path('api/reports/', include('crime_reports.urls')),
-    path('api/etl/', include('crime_etl.urls')),
+    path('api/auth/', include('accounts.urls', namespace='accounts')),
+    path('api/agencies/', include('agencies.urls', namespace='agencies')),
+    path('api/crimes/', include('crimes.urls', namespace='crimes')),
+    path('api/analytics/', include('crime_analytics.urls', namespace='crime_analytics')),
+    path('api/alerts/', include('crime_alerts.urls', namespace='crime_alerts')),
+    path('api/reports/', include('crime_reports.urls', namespace='crime_reports')),
+    path('api/etl/', include('crime_etl.urls', namespace='crime_etl')),
     
     # API authentication
     path('api-auth/', include('rest_framework.urls')),

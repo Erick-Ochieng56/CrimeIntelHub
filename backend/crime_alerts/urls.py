@@ -6,6 +6,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import AlertViewSet, AlertNotificationViewSet, NotificationPreferenceViewSet, PublicSafetyAlertViewSet
 
+app_name = 'crime_alerts'
+
 router = DefaultRouter()
 router.register('alerts', AlertViewSet, basename='alert')
 router.register('notifications', AlertNotificationViewSet, basename='notification')

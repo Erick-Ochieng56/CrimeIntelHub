@@ -6,6 +6,9 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .import views
 
+app_name = 'crime_analytics'
+# Define the router and register your viewsets
+# with the appropriate base names.
 router = DefaultRouter()
 router.register('prediction-models', views.PredictionModelViewSet, basename='prediction-model')
 router.register('hotspots', views.HotspotZoneViewSet, basename='hotspot')

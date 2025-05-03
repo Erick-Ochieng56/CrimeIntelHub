@@ -1,9 +1,7 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { useContext } from 'react';
-import { useLocation } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
-import { CrimeDataProvider } from './context/CrimeDataContext'; // Import CrimeDataProvider
+import { useContext } from 'react';
 
 // Pages
 import HomePage from './pages/HomePage';
@@ -16,6 +14,16 @@ import SearchPage from './pages/SearchPage';
 import UserProfilePage from './pages/UserProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
+// Agency pages
+import AgencyRegistrationPage from './pages/AgencyRegistrationPage';
+import AgencyRegistrationSuccessPage from './pages/AgencyRegistrationSuccessPage';
+import AgencyLoginPage from './pages/AgencyLoginPage';
+import AgencyDashboardPage from './pages/AgencyDashboardPage';
+
+// Admin pages
+import AdminLoginPage from './pages/AdminLoginPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
+
 // Auth components
 import Login from './components/user/Login';
 import Register from './components/user/Register';
@@ -26,14 +34,52 @@ const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useContext(AuthContext);
   const location = useLocation();
   
-  // Show loading indicator while authentication state is being determined
   if (loading) {
-    return <div>Loading...</div>; // Or any loading component
+    return <div>Loading...</div>;
   }
   
   if (!isAuthenticated) {
-    // Save the attempted URL for redirecting after login
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+  
+  return children;
+};
+
+// Agency guard component
+const AgencyRoute = ({ children }) => {
+  const { isAuthenticated, user, loading } = useContext(AuthContext);
+  const location = useLocation();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/agency/login" state={{ from: location }} replace />;
+  }
+  
+  if (user?.user_type !== 'agency') {
+    return <Navigate to="/" replace />;
+  }
+  
+  return children;
+};
+
+// Admin guard component
+const AdminRoute = ({ children }) => {
+  const { isAuthenticated, user, loading } = useContext(AuthContext);
+  const location = useLocation();
+  
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" state={{ from: location }} replace />;
+  }
+  
+  if (user?.user_type !== 'admin' && !user?.is_staff) {
+    return <Navigate to="/" replace />;
   }
   
   return children;
@@ -52,9 +98,7 @@ const routes = [
     path: '/dashboard',
     element: (
       <ProtectedRoute>
-        <CrimeDataProvider>
-          <DashboardPage />
-        </CrimeDataProvider>
+        <DashboardPage />
       </ProtectedRoute>
     ),
   },
@@ -67,7 +111,7 @@ const routes = [
     ),
   },
   {
-    path: '/alerts/*',
+    path: '/alerts',
     element: (
       <ProtectedRoute>
         <AlertsPage />
@@ -75,7 +119,7 @@ const routes = [
     ),
   },
   {
-    path: '/reports/*',
+    path: '/reports',
     element: (
       <ProtectedRoute>
         <ReportsPage />
@@ -106,6 +150,75 @@ const routes = [
     path: '/reset-password',
     element: <PasswordReset />,
   },
+  
+  // Agency routes
+  {
+    path: '/agencies/register',
+    element: <AgencyRegistrationPage />,
+  },
+  {
+    path: '/agency/login',
+    element: <AgencyLoginPage />,
+  },
+  {
+    path: '/agency/registration-success',
+    element: <AgencyRegistrationSuccessPage />,
+  },
+  {
+    path: '/agency/dashboard',
+    element: (
+      <AgencyRoute>
+        <AgencyDashboardPage />
+      </AgencyRoute>
+    ),
+  },
+  {
+    path: '/agency/data',
+    element: (
+      <AgencyRoute>
+        <AgencyDashboardPage />
+      </AgencyRoute>
+    ),
+  },
+  {
+    path: '/agency/analytics',
+    element: (
+      <AgencyRoute>
+        <AnalyticsPage />
+      </AgencyRoute>
+    ),
+  },
+  
+  // Admin routes
+  {
+    path: '/admin/login',
+    element: <AdminLoginPage />,
+  },
+  {
+    path: '/admin/dashboard',
+    element: (
+      <AdminRoute>
+        <AdminDashboardPage />
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/agencies',
+    element: (
+      <AdminRoute>
+        <AdminDashboardPage />
+      </AdminRoute>
+    ),
+  },
+  {
+    path: '/admin/system',
+    element: (
+      <AdminRoute>
+        <AdminDashboardPage />
+      </AdminRoute>
+    ),
+  },
+  
   {
     path: '*',
     element: <NotFoundPage />,

@@ -9,7 +9,7 @@ import api from './api';
 export const getAlerts = async () => {
   try {
     console.log('Attempting to fetch alerts');
-    const response = await api.get('/alerts/');
+    const response = await api.get('/alerts/alerts/');
     
     console.log('Full response:', response);
     console.log('Response data:', response.data);

@@ -22,7 +22,7 @@ export const generateReport = async (reportParams) => {
       format: reportParams.format
     };
     
-    const response = await api.post('/reports/generate/', formattedParams);
+    const response = await api.post('/reports/analyses/', formattedParams);
     return response.data;
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to generate report');
@@ -36,7 +36,7 @@ export const generateReport = async (reportParams) => {
  */
 export const getReportHistory = async () => {
   try {
-    const response = await api.get('/reports/history/');
+    const response = await api.get('/reports/reports/');
     return response.data;
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to fetch report history');

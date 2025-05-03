@@ -6,13 +6,13 @@ from .models import User, UserProfile, UserPreference, UserActivity, PasswordRes
 
 class UserAdmin(BaseUserAdmin):
     """Admin configuration for the custom User model."""
-    list_display = ('username', 'email', 'first_name', 'last_name', 'organization', 'is_agency_user', 'is_staff')
-    list_filter = ('is_staff', 'is_superuser', 'is_active', 'is_agency_user')
-    search_fields = ('username', 'email', 'first_name', 'last_name', 'organization')
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff')
+    list_filter = ('is_staff', 'is_superuser', 'is_active')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
     fieldsets = (
         (None, {'fields': ('username', 'password')}),
-        (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'organization', 'phone', 'title', 'bio', 'avatar')}),
-        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'is_agency_user', 'groups', 'user_permissions')}),
+        (_('Personal info'), {'fields': ('first_name', 'last_name', 'email', 'phone', 'title', 'bio', 'avatar')}),
+        (_('Permissions'), {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         (_('Preferences'), {'fields': ('email_notifications', 'push_notifications', 'sms_notifications')}),
         (_('Important dates'), {'fields': ('last_login', 'date_joined')}),
     )
@@ -23,7 +23,7 @@ class UserAdmin(BaseUserAdmin):
         }),
         (_('Additional info'), {
             'classes': ('wide',),
-            'fields': ('first_name', 'last_name', 'organization', 'is_agency_user'),
+            'fields': ('first_name', 'last_name'),
         }),
     )
 

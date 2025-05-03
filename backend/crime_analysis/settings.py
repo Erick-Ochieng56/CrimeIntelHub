@@ -62,6 +62,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'accounts.middleware.JWTAuthenticationMiddleware',
 ]
 
 ROOT_URLCONF = 'crime_analysis.urls'
@@ -213,12 +214,30 @@ DEFAULT_FROM_EMAIL = 'noreply@crimespace.org'
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
 
 # Retrieve library paths
+
+# GIS Library configurations
+# Load GDAL, GEOS, and PROJ paths from environment variables
 GDAL_LIBRARY_PATH = os.getenv('GDAL_LIBRARY_PATH')
 GEOS_LIBRARY_PATH = os.getenv('GEOS_LIBRARY_PATH')
+PROJ_LIB = os.getenv('PROJ_LIB')
+PROJ_DATA = os.getenv('PROJ_DATA')
+PROJ_DB = os.getenv('PROJ_DB')
 
-# Error checking with more informative error message
-if not GDAL_LIBRARY_PATH or not GEOS_LIBRARY_PATH:
-    raise ValueError(
-        "GDAL or GEOS library paths are missing in the .env file. "
-        "Please ensure GDAL_LIBRARY_PATH and GEOS_LIBRARY_PATH are correctly set."
-    )
+# Set environment variables explicitly to ensure they're available to Django's GDAL
+if GDAL_LIBRARY_PATH:
+    os.environ['GDAL_LIBRARY_PATH'] = GDAL_LIBRARY_PATH
+if GEOS_LIBRARY_PATH:
+    os.environ['GEOS_LIBRARY_PATH'] = GEOS_LIBRARY_PATH
+if PROJ_LIB:
+    os.environ['PROJ_LIB'] = PROJ_LIB
+if PROJ_DATA:
+    os.environ['PROJ_DATA'] = PROJ_DATA
+if PROJ_DB:
+    os.environ['PROJ_DB'] = PROJ_DB
+
+# Set environment variables explicitly to ensure they're available to Django's GDAL
+os.environ['GDAL_LIBRARY_PATH'] = GDAL_LIBRARY_PATH
+os.environ['GEOS_LIBRARY_PATH'] = GEOS_LIBRARY_PATH
+os.environ['PROJ_LIB'] = PROJ_LIB
+os.environ['PROJ_DATA'] = PROJ_DATA
+os.environ['PROJ_DB'] = PROJ_DB

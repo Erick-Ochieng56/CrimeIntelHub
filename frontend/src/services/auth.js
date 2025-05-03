@@ -1,3 +1,4 @@
+//auth.js
 import api from './api';
 
 /**
@@ -13,18 +14,64 @@ export const loginUser = async (username, password) => {
     return response.data;
   } catch (error) {
     if (error.response) {
-      // The request was made and the server responded with a status code
-      // that falls out of the range of 2xx
       const errorMessage = error.response.data?.detail || 
                            error.response.data?.message || 
                            'Login failed. Please check your credentials.';
       throw new Error(errorMessage);
     } else if (error.request) {
-      // The request was made but no response was received
       throw new Error('No response from server. Please try again later.');
     } else {
-      // Something happened in setting up the request that triggered an Error
       throw new Error(error.message || 'Login failed');
+    }
+  }
+};
+
+/**
+ * Admin login
+ * 
+ * @param {string} username - Admin username
+ * @param {string} password - Admin password
+ * @returns {Promise<Object>} User data and token
+ */
+export const adminLogin = async (username, password) => {
+  try {
+    const response = await api.post('/auth/admin-login/', { username, password });
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      const errorMessage = error.response.data?.detail || 
+                           error.response.data?.message || 
+                           'Admin login failed. Please check your credentials.';
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      throw new Error('No response from server. Please try again later.');
+    } else {
+      throw new Error(error.message || 'Admin login failed');
+    }
+  }
+};
+
+/**
+ * Agency login
+ * 
+ * @param {string} username - Agency username
+ * @param {string} password - Agency password
+ * @returns {Promise<Object>} User data, token, and agency ID
+ */
+export const agencyLogin = async (username, password) => {
+  try {
+    const response = await api.post('/auth/agency-login/', { username, password });
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      const errorMessage = error.response.data?.detail || 
+                           error.response.data?.message || 
+                           'Agency login failed. Please check your credentials.';
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      throw new Error('No response from server. Please try again later.');
+    } else {
+      throw new Error(error.message || 'Agency login failed');
     }
   }
 };
@@ -49,6 +96,30 @@ export const registerUser = async (userData) => {
       throw new Error('No response from server. Please try again later.');
     } else {
       throw new Error(error.message || 'Registration failed');
+    }
+  }
+};
+
+/**
+ * Register new agency
+ * 
+ * @param {Object} agencyData - Agency registration data
+ * @returns {Promise<Object>} User data and token
+ */
+export const agencyRegister = async (agencyData) => {
+  try {
+    const response = await api.post('/auth/agencies/register/', agencyData);
+    return response.data;
+  } catch (error) {
+    if (error.response) {
+      const errorMessage = error.response.data?.detail || 
+                          error.response.data?.message || 
+                          'Agency registration failed';
+      throw new Error(errorMessage);
+    } else if (error.request) {
+      throw new Error('No response from server. Please try again later.');
+    } else {
+      throw new Error(error.message || 'Agency registration failed');
     }
   }
 };

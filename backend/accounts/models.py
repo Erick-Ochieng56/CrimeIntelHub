@@ -9,15 +9,31 @@ from django.utils import timezone
 
 class User(AbstractUser):
     """Custom user model."""
-    
+    USER_TYPE_CHOICES = (
+        ('admin', 'System Administrator'),
+        ('agency', 'Agency User'),
+        ('user', 'Regular User'),
+    )   # Add user type field
+    user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='user')
+    agency = models.ForeignKey('agencies.Agency', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
+
     # Additional fields
-    organization = models.CharField(max_length=100, blank=True)
-    is_agency_user = models.BooleanField(default=False)
     phone = models.CharField(max_length=20, blank=True)
     title = models.CharField(max_length=100, blank=True)
     bio = models.TextField(blank=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-
+     # Convenience properties
+    @property
+    def is_admin_user(self):
+        return self.user_type == 'admin' or self.is_staff
+        
+    @property
+    def is_agency_user(self):
+        return self.user_type == 'agency'
+        
+    @property
+    def is_regular_user(self):
+        return self.user_type == 'user'
     # Notification preferences
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
@@ -40,7 +56,7 @@ class User(AbstractUser):
 class UserProfile(models.Model):
     """Extended profile information for users."""
 
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    user = models.OneToOneField('User', on_delete=models.CASCADE, related_name='profile')
     department = models.CharField(max_length=100, blank=True)
     badge_number = models.CharField(max_length=50, blank=True)
     emergency_contact = models.CharField(max_length=100, blank=True)
@@ -157,3 +173,5 @@ class UserActivity(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.get_activity_type_display()} at {self.timestamp}"
+    
+    

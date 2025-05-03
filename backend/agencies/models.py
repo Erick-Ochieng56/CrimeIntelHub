@@ -5,10 +5,28 @@ from django.contrib.gis.db import models
 
 class Agency(models.Model):
     """Model for law enforcement or data provider agencies."""
+    
+    STATUS_CHOICES = (
+        ('pending', 'Pending'),
+        ('approved', 'Approved'),
+        ('rejected', 'Rejected'),
+        ('disabled', 'Disabled'),
+    )
+    
+    AGENCY_TYPES = (
+        ('police', 'Police Department'),
+        ('sheriff', 'Sheriff Department'),
+        ('state', 'State Law Enforcement'),
+        ('federal', 'Federal Agency'),
+        ('campus', 'Campus Police'),
+        ('transit', 'Transit Police'),
+        ('other', 'Other Law Enforcement'),
+    )
 
     name = models.CharField(max_length=100)
     short_name = models.CharField(max_length=20, blank=True, null=True)
-    agency_type = models.CharField(max_length=50, blank=True, null=True)
+    agency_type = models.CharField(max_length=50, choices=AGENCY_TYPES, blank=True, null=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     description = models.TextField(blank=True, null=True)
     website = models.URLField(blank=True, null=True)
     logo = models.ImageField(upload_to='agency_logos/', blank=True, null=True)
@@ -36,6 +54,7 @@ class Agency(models.Model):
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    last_data_upload = models.DateTimeField(blank=True, null=True)
 
     class Meta:
         verbose_name_plural = 'Agencies'

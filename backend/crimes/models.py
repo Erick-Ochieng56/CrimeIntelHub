@@ -28,10 +28,9 @@ class CrimeCategory(models.Model):
 
 class District(gis_models.Model):
     """Model for police/administrative districts."""
-
     name = models.CharField(max_length=100)
     code = models.CharField(max_length=20, blank=True, null=True)
-    boundary = gis_models.MultiPolygonField(geography=True)
+    location = gis_models.PointField(geography=True, blank=True, null=True, srid=4326)
     agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name='districts')
     population = models.IntegerField(blank=True, null=True)
     description = models.TextField(blank=True, null=True)
@@ -45,12 +44,10 @@ class District(gis_models.Model):
     def __str__(self):
         return self.name
 
-
 class Neighborhood(gis_models.Model):
     """Model for neighborhoods/communities."""
-
     name = models.CharField(max_length=100)
-    boundary = gis_models.MultiPolygonField(geography=True)
+    location = gis_models.PointField(geography=True, blank=True, null=True, srid=4326)
     district = models.ForeignKey(District, on_delete=models.CASCADE, related_name='neighborhoods', null=True, blank=True)
     population = models.IntegerField(blank=True, null=True)
     description = models.TextField(blank=True, null=True)
@@ -67,7 +64,6 @@ class Neighborhood(gis_models.Model):
 
 class Crime(gis_models.Model):
     """Model for crime incidents."""
-
     STATUS_CHOICES = (
         ('reported', 'Reported'),
         ('under_investigation', 'Under Investigation'),
@@ -82,17 +78,11 @@ class Crime(gis_models.Model):
     date = models.DateField()
     time = models.TimeField(blank=True, null=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='reported')
-
-    # Geographic information
-    location = gis_models.PointField(geography=True)
-    block_address = models.CharField(max_length=255)  # Generalized for privacy
+    location = gis_models.PointField(geography=True, blank=True, null=True, srid=4326)
+    block_address = models.CharField(max_length=255)
     district = models.ForeignKey(District, on_delete=models.SET_NULL, null=True, blank=True, related_name='crimes')
     neighborhood = models.ForeignKey(Neighborhood, on_delete=models.SET_NULL, null=True, blank=True, related_name='crimes')
-
-    # Agency information
     agency = models.ForeignKey(Agency, on_delete=models.CASCADE, related_name='crimes')
-
-    # Additional details
     is_violent = models.BooleanField(default=False)
     property_loss = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
     weapon_used = models.BooleanField(default=False)
@@ -101,8 +91,6 @@ class Crime(gis_models.Model):
     domestic = models.BooleanField(default=False)
     arrests_made = models.BooleanField(default=False)
     gang_related = models.BooleanField(default=False)
-
-    # Metadata
     external_id = models.CharField(max_length=100, blank=True, null=True)
     data_source = models.CharField(max_length=100, blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
@@ -122,11 +110,9 @@ class Crime(gis_models.Model):
         return f"{self.case_number} - {self.category.name}"
 
     def save(self, *args, **kwargs):
-        # Auto-calculate violent crime flag based on category severity
         if self.category and self.category.severity_level >= 7:
             self.is_violent = True
         super().save(*args, **kwargs)
-
 
 class CrimeMedia(models.Model):
     """Model for media associated with crimes (photos, videos, etc.)."""

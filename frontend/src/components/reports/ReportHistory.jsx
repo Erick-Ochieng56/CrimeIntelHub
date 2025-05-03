@@ -24,10 +24,19 @@ const ReportHistory = () => {
       setLoading(true);
       setError(null);
       const data = await getReportHistory();
-      setReports(data);
+      
+      // Add defensive check to ensure data is an array
+      if (Array.isArray(data)) {
+        setReports(data);
+      } else {
+        console.error('Expected array from API but received:', data);
+        setReports([]);
+        setError('Data format error: Expected an array of reports');
+      }
     } catch (err) {
       console.error('Error fetching report history:', err);
       setError('Failed to load report history. Please try again later.');
+      setReports([]); // Ensure reports is always an array even on error
     } finally {
       setLoading(false);
     }
@@ -67,28 +76,30 @@ const ReportHistory = () => {
     document.body.removeChild(link);
   };
   
-  // Filter reports based on search text
-  const filteredReports = reports.filter(report => {
-    if (!filter) return true;
-    
-    const searchText = filter.toLowerCase();
-    return (
-      report.title.toLowerCase().includes(searchText) ||
-      report.format.toLowerCase().includes(searchText) ||
-      (report.description && report.description.toLowerCase().includes(searchText))
-    );
-  });
+  // Filter reports based on search text - with defensive programming
+  const filteredReports = Array.isArray(reports) 
+    ? reports.filter(report => {
+        if (!filter) return true;
+        
+        const searchText = filter.toLowerCase();
+        return (
+          report.title?.toLowerCase().includes(searchText) ||
+          report.format?.toLowerCase().includes(searchText) ||
+          (report.description && report.description.toLowerCase().includes(searchText))
+        );
+      })
+    : [];
   
-  // Sort reports
+  // Sort reports - with defensive programming
   const sortedReports = [...filteredReports].sort((a, b) => {
     let compareResult = 0;
     
     if (sortBy === 'date') {
-      compareResult = new Date(a.createdAt) - new Date(b.createdAt);
+      compareResult = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
     } else if (sortBy === 'name') {
-      compareResult = a.title.localeCompare(b.title);
+      compareResult = (a.title || '').localeCompare(b.title || '');
     } else if (sortBy === 'format') {
-      compareResult = a.format.localeCompare(b.format);
+      compareResult = (a.format || '').localeCompare(b.format || '');
     }
     
     return sortOrder === 'asc' ? compareResult : -compareResult;
@@ -219,7 +230,7 @@ const ReportHistory = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                          {report.format.toUpperCase()}
+                          {report.format?.toUpperCase()}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -329,7 +340,7 @@ const ReportHistory = () => {
                   )}
                   <div className="mt-2 flex flex-wrap gap-2">
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {viewReport.format.toUpperCase()}
+                      {viewReport.format?.toUpperCase()}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                       Created: {formatDate(viewReport.createdAt)}
@@ -357,7 +368,7 @@ const ReportHistory = () => {
                   </div>
                 ) : (
                   <div className="bg-gray-100 p-4 rounded-md">
-                    <p className="text-sm text-gray-500">Report preview not available for {viewReport.format.toUpperCase()} format</p>
+                    <p className="text-sm text-gray-500">Report preview not available for {viewReport.format?.toUpperCase()} format</p>
                   </div>
                 )}
               </div>

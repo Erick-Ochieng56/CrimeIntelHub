@@ -13,8 +13,6 @@ const Register = () => {
     username: '',
     password: '',
     confirmPassword: '',
-    organization: '',
-    isAgencyUser: false,
     agreeTerms: false,
     receiveUpdates: false
   });
@@ -73,15 +71,8 @@ const Register = () => {
       newErrors.confirmPassword = 'Passwords do not match';
     }
     
-    if (!formData.organization){
-      newErrors.organization = "Organization is required";
-    }else if (!validateOrganization(formData.organization)){
-      newErrors.organization = "Organization is invalid";
-    }
 
-    if (!formData.isAgencyUser){
-      newErrors.isAgencyUser = "Agency User is required";
-    }
+
     if (!formData.agreeTerms) {
       newErrors.agreeTerms = 'You must agree to the terms and conditions';
     }
@@ -107,8 +98,6 @@ const Register = () => {
         username: formData.username, 
         password: formData.password,
         confirm_password: formData.confirmPassword,
-        organization: formData.organization,
-        is_agency_user: formData.isAgencyUser,
         receive_updates: formData.receiveUpdates
       });
       // Redirect will be handled by the useEffect once isAuthenticated is updated
@@ -289,48 +278,9 @@ const Register = () => {
   </div>
 </div>
 
-{/* Organization field */}
-<div>
-  <label htmlFor="organization" className="block text-sm font-medium text-gray-700">
-    Organization
-  </label>
-  <div className="mt-1">
-    <input
-      id="organization"
-      name="organization"
-      type="text"
-      value={formData.organization}
-      onChange={handleChange}
-      className={`appearance-none block w-full px-3 py-2 border ${
-        errors.organization ? 'border-red-300' : 'border-gray-300'
-      } rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm`}
-    />
-    {errors.organization && (
-      <p className="mt-2 text-sm text-red-600">{errors.organization}</p>
-    )}
-  </div>
-</div>
 
-<div className="flex items-start">
-  <div className="flex items-center h-5">
-    <input
-      id="isAgencyUser"
-      name="isAgencyUser"
-      type="checkbox"
-      checked={formData.isAgencyUser}
-      onChange={handleChange}
-      className="focus:ring-blue-500 h-4 w-4 text-blue-600 border-gray-300 rounded"
-    />
-  </div>
-  <div className="ml-3 text-sm">
-    <label htmlFor="isAgencyUser" className="font-medium text-gray-700">
-      I am registering as an agency user
-    </label>
-    {errors.isAgencyUser && (
-      <p className="mt-1 text-sm text-red-600">{errors.isAgencyUser}</p>
-    )}
-  </div>
-</div>
+
+
               <div className="space-y-4">
                 <div className="flex items-start">
 

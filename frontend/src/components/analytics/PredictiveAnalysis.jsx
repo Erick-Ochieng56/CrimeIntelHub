@@ -49,10 +49,21 @@ const PredictiveAnalysis = () => {
       };
       
       const results = await getPredictiveAnalysis(params);
-      setPredictions(results);
+      
+      // Check if results is an array, if not, convert it or initialize an empty array
+      if (Array.isArray(results)) {
+        setPredictions(results);
+      } else if (results && typeof results === 'object') {
+        // If it's an object with data property that's an array
+        setPredictions(Array.isArray(results.data) ? results.data : []);
+      } else {
+        // If nothing valid is returned
+        setPredictions([]);
+      }
     } catch (err) {
       console.error('Error fetching predictive data:', err);
       setError('Failed to load predictive analysis. Please try again later.');
+      setPredictions([]); // Reset to empty array on error
     } finally {
       setLoading(false);
     }
@@ -167,8 +178,8 @@ const PredictiveAnalysis = () => {
               </Marker>
             )}
             
-            {/* Display prediction circles */}
-            {predictions.map((pred, index) => (
+            {/* Display prediction circles with safeguard */}
+            {Array.isArray(predictions) && predictions.map((pred, index) => (
               <Circle
                 key={index}
                 center={[pred.latitude, pred.longitude]}
@@ -189,7 +200,7 @@ const PredictiveAnalysis = () => {
                       <div className="mt-2">
                         <p className="font-medium">Contributing Factors:</p>
                         <ul className="list-disc pl-4 text-sm">
-                          {pred.factors.map((factor, i) => (
+                          {Array.isArray(pred.factors) && pred.factors.map((factor, i) => (
                             <li key={i}>{factor}</li>
                           ))}
                         </ul>
@@ -211,7 +222,7 @@ const PredictiveAnalysis = () => {
             <div className="flex justify-center py-12">
               <Loader size="lg" />
             </div>
-          ) : predictions.length > 0 ? (
+          ) : Array.isArray(predictions) && predictions.length > 0 ? (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">

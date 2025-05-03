@@ -6,6 +6,8 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .import views
 
+app_name = 'crime_reports'
+
 router = DefaultRouter()
 router.register('reports', views.ReportViewSet, basename='report')
 router.register('templates', views.ReportTemplateViewSet, basename='template')
