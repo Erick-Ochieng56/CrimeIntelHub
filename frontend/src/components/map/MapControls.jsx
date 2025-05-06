@@ -3,20 +3,28 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import LocationSearch from './LocationSearch';
 
+// Updated crime types to match backend categories with correct colors
 const CRIME_TYPES = [
-  { value: 'THEFT', label: 'Theft' },
-  { value: 'ASSAULT', label: 'Assault' },
-  { value: 'BURGLARY', label: 'Burglary' },
-  { value: 'ROBBERY', label: 'Robbery' },
-  { value: 'VANDALISM', label: 'Vandalism' },
-  { value: 'DRUG', label: 'Drug Offenses' },
-  { value: 'FRAUD', label: 'Fraud' },
-  { value: 'OTHER', label: 'Other' },
+  { value: 'HOMICIDE', label: 'Homicide', color: '#FF0000' },
+  { value: 'OFFENSES', label: 'Offenses', color: '#FF4500' },
+  { value: 'ROBBERY', label: 'Robbery', color: '#FFA500' },
+  { value: 'OTHER_OFFENSES', label: 'Other Offenses', color: '#FFD700' },
+  { value: 'BREAKINGS', label: 'Breakings', color: '#ADFF2F' },
+  { value: 'THEFT_OF_STOLEN_GOODS', label: 'Theft of Stolen Goods', color: '#9ACD32' },
+  { value: 'STEALING', label: 'Stealing', color: '#98FB98' },
+  { value: 'THEFT_BY_SERVANT', label: 'Theft by Servant', color: '#90EE90' },
+  { value: 'THEFT_OF_VEHICLE', label: 'Theft of Vehicles', color: '#00FF7F' },
+  { value: 'DANGEROUS_DRUGS', label: 'Dangerous Drugs', color: '#20B2AA' },
+  { value: 'TRAFFIC', label: 'Traffic Offenses', color: '#87CEEB' },
+  { value: 'ECONOMIC', label: 'Economic Crimes', color: '#ADD8E6' },
+  { value: 'CRIMINAL_DAMAGE', label: 'Criminal Damage', color: '#B0C4DE' },
+  { value: 'CORRUPTION', label: 'Corruption', color: '#DDA0DD' },
+  { value: 'OTHER_PENAL', label: 'Other Penal Code Offenses', color: '#D8BFD8' },
 ];
 
-const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
+const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchRadius, setSearchRadius] = useState(filters.searchRadius || 5);
+  const [searchRadius, setSearchRadius] = useState(filters.searchRadius || 500);
   const [dateRange, setDateRange] = useState({
     startDate: filters.dateRange?.start || null,
     endDate: filters.dateRange?.end || null,
@@ -30,7 +38,8 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
   };
   
   const handleRadiusChange = (e) => {
-    setSearchRadius(Number(e.target.value));
+    const newRadius = Number(e.target.value);
+    setSearchRadius(newRadius);
   };
   
   const handleCrimeTypeToggle = (type) => {
@@ -53,14 +62,14 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
   };
   
   const handleResetFilters = () => {
-    setSearchRadius(5);
+    setSearchRadius(500);
     setDateRange({ startDate: null, endDate: null });
     setSelectedCrimeTypes([]);
     
     onFilterChange({
       crimeTypes: [],
       dateRange: { start: null, end: null },
-      searchRadius: 5,
+      searchRadius: 500,
     });
   };
   
@@ -104,9 +113,9 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
                 <input
                   id="radius"
                   type="range"
-                  min="1"
-                  max="25"
-                  step="1"
+                  min="100"
+                  max="1000"
+                  step="10"
                   value={searchRadius}
                   onChange={handleRadiusChange}
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
@@ -142,7 +151,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
                 </div>
               </div>
               
-              {/* Crime Types */}
+              {/* Crime Types with color indicators */}
               <div>
                 <span className="block text-sm font-medium text-gray-700 mb-1">
                   Crime Types
@@ -157,7 +166,14 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
                         checked={selectedCrimeTypes.includes(crime.value)}
                         onChange={() => handleCrimeTypeToggle(crime.value)}
                       />
-                      <label htmlFor={`crime-${crime.value}`} className="ml-2 block text-sm text-gray-700">
+                      <label
+                        htmlFor={`crime-${crime.value}`}
+                        className="ml-2 flex items-center text-sm text-gray-700"
+                      >
+                        <span
+                          className="inline-block w-3 h-3 rounded-full mr-2"
+                          style={{ backgroundColor: crime.color }}
+                        ></span>
                         {crime.label}
                       </label>
                     </div>
@@ -165,19 +181,32 @@ const MapControls = ({ onFilterChange, onLocationChange, filters }) => {
                 </div>
               </div>
               
-              {/* Action Buttons */}
+              {/* Action buttons */}
               <div className="flex space-x-2 pt-2">
                 <button
                   onClick={handleApplyFilters}
-                  className="w-full btn btn-primary"
+                  className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 focus:outline-none"
                 >
                   Apply Filters
                 </button>
                 <button
                   onClick={handleResetFilters}
-                  className="btn btn-secondary"
+                  className="bg-gray-200 text-gray-700 py-2 px-4 rounded hover:bg-gray-300 focus:outline-none"
                 >
                   Reset
+                </button>
+              </div>
+
+              {/* Refresh data button */}
+              <div>
+                <button
+                  onClick={onRefresh}
+                  className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 focus:outline-none flex items-center justify-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh Data
                 </button>
               </div>
             </div>

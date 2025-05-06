@@ -103,7 +103,7 @@ const routes = [
     ),
   },
   {
-    path: '/analytics',
+    path: '/analytics/*',
     element: (
       <ProtectedRoute>
         <AnalyticsPage />
@@ -111,7 +111,7 @@ const routes = [
     ),
   },
   {
-    path: '/alerts',
+    path: '/alerts/*',
     element: (
       <ProtectedRoute>
         <AlertsPage />
@@ -119,7 +119,7 @@ const routes = [
     ),
   },
   {
-    path: '/reports',
+    path: '/reports/*',
     element: (
       <ProtectedRoute>
         <ReportsPage />
@@ -127,7 +127,7 @@ const routes = [
     ),
   },
   {
-    path: '/search',
+    path: '/search/*',
     element: <SearchPage />,
   },
   {

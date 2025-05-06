@@ -49,7 +49,7 @@ const AgencyDashboardPage = () => {
   const [monthlyCrimeData, setMonthlyCrimeData] = useState(null);
   const [uploadStatus, setUploadStatus] = useState('idle'); // idle, uploading, success, error
   const [selectedFile, setSelectedFile] = useState(null);
-  const [mapCenter, setMapCenter] = useState([40.7128, -74.0060]); // New York as default
+  const [mapCenter, setMapCenter] = useState([-1.2833, 36.8167]); // Nairobi as default
   const [error, setError] = useState(null);
 
   // Get agency ID from context user or fallback to localStorage

@@ -159,9 +159,3 @@ export const validateUsername = (username) => {
   return regex.test(username);
 };
 
-export const validateOrganization = (organization) => {
-  // Simple validation - organization must be at least 2 characters
-  return organization.length >= 2;
-};
-
-// For isAgencyUser, it's a boolean so no validation needed beyond checking if it exists

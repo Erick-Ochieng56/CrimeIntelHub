@@ -1,17 +1,24 @@
 import L from 'leaflet';
 
-// Colors for different crime types
+// Colors for different crime types - updated to match backend categories
 const CRIME_COLORS = {
-  'THEFT': '#e53e3e',        // Red
-  'ASSAULT': '#dd6b20',      // Orange
-  'BURGLARY': '#d69e2e',     // Yellow
-  'ROBBERY': '#805ad5',      // Purple
-  'VANDALISM': '#3182ce',    // Blue
-  'DRUG': '#38a169',         // Green
-  'FRAUD': '#6b46c1',        // Indigo
+  'HOMICIDE': '#FF0000',      // Red (matches backend)
+  'OFFENSES': '#FF4500',      // Orange-Red (matches backend)
+  'ROBBERY': '#FFA500',       // Orange (matches backend)
+  'OTHER_OFFENSES': '#FFD700', // Gold (matches backend)
+  'BREAKINGS': '#ADFF2F',     // Green-Yellow (matches backend)
+  'THEFT_OF_STOLEN_GOODS': '#9ACD32', // Yellow-Green (matches backend)
+  'STEALING': '#98FB98',      // Pale Green (matches backend)
+  'THEFT_BY_SERVANT': '#90EE90', // Light Green (matches backend)
+  'THEFT_OF_VEHICLE': '#00FF7F', // Spring Green (matches backend)
+  'DANGEROUS_DRUGS': '#20B2AA', // Light Sea Green (matches backend)
+  'TRAFFIC': '#87CEEB',       // Sky Blue (matches backend)
+  'ECONOMIC': '#ADD8E6',      // Light Blue (matches backend)
+  'CRIMINAL_DAMAGE': '#B0C4DE', // Light Steel Blue (matches backend)
+  'CORRUPTION': '#DDA0DD',    // Plum (matches backend)
+  'OTHER_PENAL': '#D8BFD8',   // Thistle (matches backend)
   'OTHER': '#718096',        // Gray
 };
-
 /**
  * Creates a custom cluster marker icon based on the crimes in the cluster
  * @param {Object} cluster - The cluster object from react-leaflet-markercluster
@@ -32,15 +39,22 @@ const ClusterMarker = (cluster, allCrimes) => {
     size = 50;
   }
   
+  
   // Get crime types in this cluster by finding the crime data for each marker
   // This is a simplified approach - in a real app, you'd likely have this data attached to the marker
+
+  // Get crime types in this cluster by finding the crime data for each marker
+  // This looks up the crime by matching coordinates closely
   const crimeTypes = markers.map(marker => {
     const [lat, lng] = [marker.getLatLng().lat, marker.getLatLng().lng];
     const crime = allCrimes.find(c => 
       Math.abs(c.latitude - lat) < 0.00001 && 
       Math.abs(c.longitude - lng) < 0.00001
     );
-    return crime ? crime.type : 'OTHER';
+    
+    // Make sure we normalize the type to match our color mappings
+    const crimeType = crime ? crime.type : 'OTHER';
+    return crimeType ? crimeType.toUpperCase() : 'OTHER';
   });
   
   // Count occurrences of each crime type

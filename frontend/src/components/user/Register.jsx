@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
-import { validateEmail, validatePassword, validateUsername, validateOrganization } from '../../utils/validators';
+import { validateEmail, validatePassword, validateUsername } from '../../utils/validators';
 
 const Register = () => {
   const [formData, setFormData] = useState({

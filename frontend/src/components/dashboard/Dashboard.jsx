@@ -1,9 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import CrimeStats from './CrimeStats';
 import CrimeTrends from './CrimeTrends';
 import Card from '../common/Card';
+import { getCrimes, getCrimeStats } from '../../services/crimeService';
 
 const Dashboard = () => {
+  const [stats, setStats] = useState(null);
+  const [recentCrimes, setRecentCrimes] = useState([]);
+  const [timeFrame, setTimeFrame] = useState('lastMonth');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetchStats = async () => {
+    setLoading(true);
+    try {
+      const params = { time_frame: timeFrame, lat: -4.0435, lng: 39.6682, radius: 500 };
+      const data = await getCrimeStats(params);
+      setStats(data);
+    } catch (err) {
+      setError('Failed to load statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchRecentCrimes = async () => {
+    try {
+      const params = { lat: -4.0435, lng: 39.6682, radius: 500, startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] };
+      const data = await getCrimes(params);
+      setRecentCrimes(data.slice(0, 5));
+    } catch (err) {
+      setError('Failed to load recent crimes');
+    }
+  };
+
+  useEffect(() => {
+    fetchStats();
+    fetchRecentCrimes();
+  }, [timeFrame]);
+
+  const handleRefresh = () => {
+    fetchStats();
+    fetchRecentCrimes();
+  };
+
+  const handleTimeFrameChange = (e) => {
+    setTimeFrame(e.target.value);
+  };
+
+  if (loading) return <div className="p-6">Loading...</div>;
+  if (error) return <div className="p-6 text-red-600">{error}</div>;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
@@ -11,7 +58,8 @@ const Dashboard = () => {
         <div className="mt-2 md:mt-0 flex space-x-2">
           <select
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            defaultValue="lastMonth"
+            value={timeFrame}
+            onChange={handleTimeFrameChange}
           >
             <option value="last24Hours">Last 24 Hours</option>
             <option value="lastWeek">Last Week</option>
@@ -22,6 +70,7 @@ const Dashboard = () => {
           <button
             type="button"
             className="btn btn-primary flex items-center"
+            onClick={handleRefresh}
           >
             <svg
               className="h-5 w-5 mr-2"
@@ -89,7 +138,7 @@ const Dashboard = () => {
                   </dt>
                   <dd>
                     <div className="text-lg font-semibold text-gray-900">
-                      12,361
+                      {stats?.total_crimes || 0}
                     </div>
                   </dd>
                 </dl>
@@ -110,9 +159,9 @@ const Dashboard = () => {
                       clipRule="evenodd"
                     />
                   </svg>
-                  <span className="ml-1">3.2% decrease</span>
+                  <span className="ml-1">{((stats?.total_crimes - stats?.previous_total_crimes) / stats?.previous_total_crimes * 100 || 0).toFixed(1)}% {stats?.total_crimes >= stats?.previous_total_crimes ? 'increase' : 'decrease'}</span>
                 </div>
-                <div className="text-sm text-gray-500">from last month</div>
+                <div className="text-sm text-gray-500">from last period</div>
               </div>
             </div>
           </div>
@@ -143,7 +192,7 @@ const Dashboard = () => {
                     High Risk Areas
                   </dt>
                   <dd>
-                    <div className="text-lg font-semibold text-gray-900">8</div>
+                    <div className="text-lg font-semibold text-gray-900">8</div> {/* Placeholder; needs backend calc */}
                   </dd>
                 </dl>
               </div>
@@ -196,7 +245,7 @@ const Dashboard = () => {
                     Active Alerts
                   </dt>
                   <dd>
-                    <div className="text-lg font-semibold text-gray-900">24</div>
+                    <div className="text-lg font-semibold text-gray-900">24</div> {/* Placeholder; needs backend calc */}
                   </dd>
                 </dl>
               </div>
@@ -249,7 +298,7 @@ const Dashboard = () => {
                     Generated Reports
                   </dt>
                   <dd>
-                    <div className="text-lg font-semibold text-gray-900">138</div>
+                    <div className="text-lg font-semibold text-gray-900">138</div> {/* Placeholder; needs backend calc */}
                   </dd>
                 </dl>
               </div>
@@ -282,14 +331,14 @@ const Dashboard = () => {
         <Card>
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Crime Statistics by Type</h2>
-            <CrimeStats />
+            <CrimeStats timeFrame={timeFrame} />
           </div>
         </Card>
 
         <Card>
           <div className="p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Crime Trends Over Time</h2>
-            <CrimeTrends />
+            <CrimeTrends timeFrame={timeFrame} />
           </div>
         </Card>
       </div>
@@ -306,85 +355,34 @@ const Dashboard = () => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date & Time
                   </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Crime Type
                   </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Location
                   </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Status
                   </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {[
-                  {
-                    id: 1,
-                    date: '2023-05-07T18:30:00',
-                    type: 'Theft',
-                    location: '123 Main St, Block 500',
-                    status: 'Reported',
-                  },
-                  {
-                    id: 2,
-                    date: '2023-05-06T14:15:00',
-                    type: 'Assault',
-                    location: '456 Oak Ave, Block 300',
-                    status: 'Under Investigation',
-                  },
-                  {
-                    id: 3,
-                    date: '2023-05-05T20:45:00',
-                    type: 'Burglary',
-                    location: '789 Pine St, Block 200',
-                    status: 'Closed',
-                  },
-                  {
-                    id: 4,
-                    date: '2023-05-05T10:20:00',
-                    type: 'Vandalism',
-                    location: '101 Maple Dr, Block 400',
-                    status: 'Reported',
-                  },
-                  {
-                    id: 5,
-                    date: '2023-05-04T16:10:00',
-                    type: 'Robbery',
-                    location: '202 Cedar Ln, Block 100',
-                    status: 'Under Investigation',
-                  },
-                ].map((crime) => (
+                {recentCrimes.map((crime) => (
                   <tr key={crime.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(crime.date).toLocaleString()}
+                      {new Date(`${crime.date}T${crime.time}`).toLocaleString()}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {crime.type}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {crime.location}
+                      {crime.block_address || crime.district}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
@@ -400,16 +398,10 @@ const Dashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <a
-                        href="#"
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
+                      <a href="#" className="text-blue-600 hover:text-blue-900 mr-3">
                         View
                       </a>
-                      <a
-                        href="#"
-                        className="text-blue-600 hover:text-blue-900"
-                      >
+                      <a href="#" className="text-blue-600 hover:text-blue-900">
                         Map
                       </a>
                     </td>

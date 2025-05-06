@@ -87,7 +87,7 @@ export const getCrimeClusters = async (params = {}) => {
       end_date: params.endDate,
     };
     
-    const response = await api.get('/maps/clusters/', { params: apiParams });
+    const response = await api.get('crimes/heatmap/', { params: apiParams });
     return response.data;
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to fetch crime clusters');
