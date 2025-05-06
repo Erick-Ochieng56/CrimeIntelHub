@@ -1,7 +1,5 @@
-"""
-Views for crimes app.
-"""
 import datetime
+import logging
 from dateutil.relativedelta import relativedelta
 from django.db.models import Count, Sum, Q, F
 from django.contrib.gis.geos import Point
@@ -72,15 +70,24 @@ class CrimeViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Apply additional filters to queryset."""
         user = self.request.user
+        logger = logging.getLogger(__name__)
         queryset = super().get_queryset()
+
+        logger.info(f"Initial queryset count: {queryset.count()}")
 
         # Filter by user's agency for agency users
         if user.is_authenticated and user.user_type == 'agency' and user.agency:
             queryset = queryset.filter(agency=user.agency)
+            logger.info(f"After agency filter: {queryset.count()} records")
         elif not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
             queryset = queryset.filter(status__in=['reported', 'solved', 'closed'])
+            logger.info(f"After status filter: {queryset.count()} records")
 
-        # Filter by distance if lat, lng, and radius provided
+        # Ensure location is not null
+        queryset = queryset.filter(location__isnull=False)
+        logger.info(f"After location filter: {queryset.count()} records")
+
+        # Geospatial filter
         lat = self.request.query_params.get('lat')
         lng = self.request.query_params.get('lng')
         radius = self.request.query_params.get('radius')
@@ -90,9 +97,33 @@ class CrimeViewSet(viewsets.ModelViewSet):
                 queryset = queryset.annotate(
                     distance=Distance('location', point)
                 ).filter(distance__lte=D(km=float(radius)))
-            except (ValueError, TypeError):
-                pass
+                logger.info(f"After geospatial filter (radius={radius} km): {queryset.count()} records")
+            except (ValueError, TypeError) as e:
+                logger.error(f"Geospatial filter error: {e}")
 
+        # Apply additional filters
+        crime_types = self.request.query_params.get('crimeTypes', '').split(',')
+        if crime_types and crime_types[0]:
+            queryset = queryset.filter(category__name__in=[t.lower() for t in crime_types])
+            logger.info(f"After crime types filter ({crime_types}): {queryset.count()} records")
+
+        start_date = self.request.query_params.get('startDate')
+        if start_date:
+            try:
+                queryset = queryset.filter(date__gte=start_date)
+                logger.info(f"After start date filter ({start_date}): {queryset.count()} records")
+            except ValueError as e:
+                logger.error(f"Start date filter error: {e}")
+
+        end_date = self.request.query_params.get('endDate')
+        if end_date:
+            try:
+                queryset = queryset.filter(date__lte=end_date)
+                logger.info(f"After end date filter ({end_date}): {queryset.count()} records")
+            except ValueError as e:
+                logger.error(f"End date filter error: {e}")
+
+        logger.info(f"Final queryset count: {queryset.count()}")
         return queryset
 
     def perform_create(self, serializer):
@@ -178,7 +209,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
         crime_type_counts = current_crimes.values('category__name').annotate(
             count=Count('id')
         ).order_by('-count')
-
+        
         stats = {
             'total_crimes': current_crimes.count(),
             'previous_total_crimes': previous_crimes.count(),

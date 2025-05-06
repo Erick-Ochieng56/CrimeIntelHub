@@ -241,3 +241,9 @@ os.environ['GEOS_LIBRARY_PATH'] = GEOS_LIBRARY_PATH
 os.environ['PROJ_LIB'] = PROJ_LIB
 os.environ['PROJ_DATA'] = PROJ_DATA
 os.environ['PROJ_DB'] = PROJ_DB
+
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+    }
+}

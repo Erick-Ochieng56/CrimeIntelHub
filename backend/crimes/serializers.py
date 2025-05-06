@@ -67,25 +67,15 @@ class CrimeNoteSerializer(serializers.ModelSerializer):
 
 
 class CrimeListSerializer(serializers.ModelSerializer):
-    """Serializer for listing crimes with location."""
-
-    category_name = serializers.CharField(source='category.name', read_only=True)
-    latitude = serializers.SerializerMethodField()
-    longitude = serializers.SerializerMethodField()
+    category = serializers.CharField(source='category.name')
+    district = serializers.CharField(source='district.name')
 
     class Meta:
         model = Crime
-        fields = (
-            'id', 'case_number', 'category', 'category_name', 'description', 
-            'date', 'time', 'status', 'block_address', 'district', 'neighborhood',
-            'agency', 'is_violent', 'latitude', 'longitude'
-        )
-
-    def get_latitude(self, obj):
-        return obj.location.y if obj.location else None
-
-    def get_longitude(self, obj):
-        return obj.location.x if obj.location else None
+        fields = ['id', 'case_number', 'category', 'date', 'time', 'description', 
+                  'block_address', 'district', 'location', 'status', 'is_violent', 
+                  'property_loss']
+        read_only_fields = fields
 
 class CrimeDetailSerializer(GeoFeatureModelSerializer):
     """Serializer for detailed crime information."""

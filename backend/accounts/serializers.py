@@ -101,7 +101,7 @@ class RegisterSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         """Create new user."""
         validated_data.pop('confirm_password')
-        user = User.objects.create_user(**validated_data, user_type='user')
+        user = User.objects.create_user(**validated_data)
         return user
 
 class AgencyRegisterSerializer(serializers.Serializer):

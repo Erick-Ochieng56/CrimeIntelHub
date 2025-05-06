@@ -9,7 +9,7 @@ app_name = 'accounts'
 
 urlpatterns = [
     # User registration and authentication
-    path('auth/register/', views.RegisterView.as_view(), name='register'),
+    path('register/', views.RegisterView.as_view(), name='register'),
     path('login/', views.LoginView.as_view(), name='login'),
     path('agency-login/', views.AgencyLoginView.as_view(), name='agency_login'),
     path('admin-login/', views.AdminLoginView.as_view(), name='admin_login'),
