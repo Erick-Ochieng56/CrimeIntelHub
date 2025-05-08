@@ -401,11 +401,11 @@ class AgencyContactViewSet(viewsets.ModelViewSet):
     ordering = ['name']
 
     def get_queryset(self):
-        """Restrict contacts to the user's agency unless admin."""
         queryset = super().get_queryset()
-        if not self.request.user.is_staff:
-            return queryset.filter(agency=self.request.user.agency)
-        return queryset
+        if getattr(self, 'swagger_fake_view', False):
+            return queryset.none()
+        return queryset.filter(agency=self.request.user.agency)
+
 
     def get_permissions(self):
         """Return appropriate permissions based on action."""

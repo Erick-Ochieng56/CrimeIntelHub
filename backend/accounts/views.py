@@ -357,8 +357,10 @@ class AgencyUserDetail(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAgencyUser]
 
     def get_queryset(self):
-        """Return users associated with the authenticated agency."""
+        if getattr(self, 'swagger_fake_view', False):
+            return User.objects.none()
         return User.objects.filter(agency=self.request.user.agency)
+       
 
     def perform_update(self, serializer):
         """Update user details, restrict critical fields."""
