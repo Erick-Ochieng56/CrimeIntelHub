@@ -90,6 +90,22 @@ class CrimePrediction(gis_models.Model):
     def __str__(self):
         return f"{self.crime_type} prediction for {self.prediction_date}"
 
+class CrimePredictionResult(models.Model):
+    """Model to store crime prediction results."""
+    prediction_date = models.DateField()
+    location = gis_models.PointField(geography=True)
+    crime_type = models.CharField(max_length=100)
+    probability = models.FloatField(help_text="Probability of the predicted crime type (0-1)")
+    contributing_factors = models.JSONField(default=dict, help_text="Factors contributing to the prediction")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-prediction_date']
+        verbose_name_plural = 'Crime Prediction Results'
+
+    def __str__(self):
+        return f"Prediction for {self.crime_type} on {self.prediction_date}"
+
 class PatternAnalysis(models.Model):
     """Model for storing crime pattern analysis results."""
     name = models.CharField(max_length=100)

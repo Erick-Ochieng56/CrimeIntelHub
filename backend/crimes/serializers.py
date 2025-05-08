@@ -8,6 +8,8 @@ from .models import (
     CrimeMedia, CrimeNote, CrimeStatistic
 )
 from django.contrib.gis.geos import Point
+from rest_framework_gis.fields import GeometryField
+from rest_framework_gis.serializers import GeoModelSerializer as GeoJSONSerializer
 
 
 class CrimeCategorySerializer(serializers.ModelSerializer):
@@ -67,8 +69,8 @@ class CrimeNoteSerializer(serializers.ModelSerializer):
 
 
 class CrimeListSerializer(serializers.ModelSerializer):
-    category = serializers.CharField(source='category.name')
-    district = serializers.CharField(source='district.name')
+    category = serializers.CharField(source='category.name', default='Unknown')
+    district = serializers.SerializerMethodField()
 
     class Meta:
         model = Crime
@@ -76,6 +78,9 @@ class CrimeListSerializer(serializers.ModelSerializer):
                   'block_address', 'district', 'location', 'status', 'is_violent', 
                   'property_loss']
         read_only_fields = fields
+
+    def get_district(self, obj):
+        return obj.district.name if obj.district else 'Unknown'
 
 class CrimeDetailSerializer(GeoFeatureModelSerializer):
     """Serializer for detailed crime information."""
@@ -212,3 +217,35 @@ class PublicCrimeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Crime
         fields = ('id', 'category', 'date', 'block_address', 'is_violent')
+
+
+class CrimeUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating crime records."""
+    
+    class Meta:
+        model = Crime
+        fields = (
+            'case_number', 'category', 'description', 'date', 'time', 
+            'status', 'block_address', 'district', 'neighborhood', 
+            'agency', 'is_violent', 'property_loss', 'weapon_used',
+            'weapon_type', 'drug_related', 'domestic', 'arrests_made',
+            'gang_related', 'external_id', 'data_source'
+        )
+        
+class CrimeFilterSerializer(serializers.Serializer):
+    """Serializer for filtering crime records."""
+    
+    start_date = serializers.DateField(required=False)
+    end_date = serializers.DateField(required=False)
+    crime_types = serializers.ListField(
+        child=serializers.CharField(),
+        required=False
+    )
+    is_violent = serializers.BooleanField(required=False)
+    status = serializers.CharField(required=False)
+    
+    class Meta:
+        fields = (
+            'start_date', 'end_date', 'crime_types', 
+            'is_violent', 'status'
+        )

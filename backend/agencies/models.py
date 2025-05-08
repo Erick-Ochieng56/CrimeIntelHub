@@ -14,12 +14,10 @@ class Agency(models.Model):
     )
     
     AGENCY_TYPES = (
-        ('police', 'Police Department'),
-        ('sheriff', 'Sheriff Department'),
-        ('state', 'State Law Enforcement'),
-        ('federal', 'Federal Agency'),
-        ('campus', 'Campus Police'),
-        ('transit', 'Transit Police'),
+        ('police', 'Police Department(local law enforcement)'),
+        ('kps', 'Kenya Police Service (KPS)'),
+        ('nis', 'National Intelligence Service (NIS)'),
+        ('dci', 'Directorate of Criminal Investigations (DCI)'),
         ('other', 'Other Law Enforcement'),
     )
 

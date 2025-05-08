@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dotenv
+from urllib.parse import urlparse
 
 # Load environment variables from .env file
 dotenv.load_dotenv()
@@ -87,7 +88,6 @@ WSGI_APPLICATION = 'crime_analysis.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.contrib.gis.db.backends.postgis',
@@ -99,6 +99,22 @@ DATABASES = {
     }
 }
 
+
+"""
+# Replace the DATABASES section of your settings.py with this
+tmpPostgres = urlparse(os.getenv("DATABASE_URL"))
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': tmpPostgres.path.replace('/', ''),
+        'USER': tmpPostgres.username,
+        'PASSWORD': tmpPostgres.password,
+        'HOST': tmpPostgres.hostname,
+        'PORT': 5432,
+    }
+}
+"""
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
 
@@ -244,6 +260,11 @@ os.environ['PROJ_DB'] = PROJ_DB
 
 CACHES = {
     "default": {
-        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://ryman:Demon@56@redis-10598.c278.us-east-1-4.ec2.redns.redis-cloud.com:10598",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+        },
+        "KEY_PREFIX": "crime_analysis"
     }
 }
