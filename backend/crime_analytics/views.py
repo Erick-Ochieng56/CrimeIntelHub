@@ -56,8 +56,8 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
         # Extract parameters from request
         date_str = request.query_params.get('date')
         crime_type = request.query_params.get('crime_type')
-        lat_str = request.query_params.get('lat')
-        lng_str = request.query_params.get('lng')
+        lat = request.query_params.get('lat')
+        lng = request.query_params.get('lng')
         
         # Validate parameters
         if not date_str:
@@ -68,24 +68,10 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
         
         try:
             # Check if lat and lng were provided and are valid floats
-            if lat_str is not None and lng_str is not None:
-                try:
-                    lat = float(lat_str)
-                    lng = float(lng_str)
-                    
-                    # Basic validation for lat/lng ranges
-                    if lat < -90 or lat > 90 or lng < -180 or lng > 180:
-                        return Response(
-                            {"error": "Latitude must be between -90 and 90, and longitude must be between -180 and 180."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                        
-                    location = Point(lng, lat, srid=4326)
-                except ValueError:
-                    return Response(
-                        {"error": "Invalid latitude or longitude format. Must be valid numbers."},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            if lat is not None and lng is not None:
+                lat = float(lat)
+                lng = float(lng)
+                location = Point(lng, lat, srid=4326)
             else:
                 # Default to a central point if no location provided
                 location = None
@@ -116,9 +102,9 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
             # Return the array directly - this is key
             return Response(serializer.data)
             
-        except ValueError as e:
+        except ValueError:
             return Response(
-                {"error": f"Invalid parameter value: {str(e)}"},
+                {"error": "Invalid latitude or longitude."},
                 status=status.HTTP_400_BAD_REQUEST
             )
         except Exception as e:
@@ -169,46 +155,25 @@ class CrimeDataViewSet(viewsets.ReadOnlyModelViewSet):
 
         return queryset
 
-@api_view(['POST', 'GET'])
+@api_view(['POST'])
 def predict_crime(request):
     """Handle crime prediction requests."""
-    # Get data from either POST body or GET query params
-    if request.method == 'POST':
-        data = request.data
-    else:  # GET
-        data = request.query_params
-        
+    data = request.data
     date = data.get('date')
-    lat_str = data.get('lat')
-    lng_str = data.get('lng')
+    lat = data.get('lat')
+    lng = data.get('lng')
     crime_type = data.get('crime_type', 'ALL')
 
     # Validate inputs
-    if not date:
-        return Response({"error": "Date is required."}, status=400)
-    
-    # Optional location parameters
-    if lat_str and lng_str:
-        try:
-            lat = float(lat_str)
-            lng = float(lng_str)
-            
-            # Basic validation for lat/lng ranges
-            if lat < -90 or lat > 90 or lng < -180 or lng > 180:
-                return Response(
-                    {"error": "Latitude must be between -90 and 90, and longitude must be between -180 and 180."},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-                
-            location = Point(lng, lat, srid=4326)
-        except ValueError:
-            return Response({"error": "Invalid latitude or longitude format. Must be valid numbers."}, status=400)
-    else:
-        # Default location if not provided
-        # This is just an example - you might want to adjust this based on your application's needs
-        lat = 0
-        lng = 0
+    if not date or not lat or not lng:
+        return Response({"error": "Date, latitude, and longitude are required."}, status=400)
+
+    try:
+        lat = float(lat)
+        lng = float(lng)
         location = Point(lng, lat, srid=4326)
+    except ValueError:
+        return Response({"error": "Invalid latitude or longitude."}, status=400)
 
     # Load the trained model
     model_path = os.path.join(settings.BASE_DIR, 'backend', 'crime_prediction_model.pkl')

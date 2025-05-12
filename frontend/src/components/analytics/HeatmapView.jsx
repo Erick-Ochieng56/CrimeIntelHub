@@ -5,7 +5,7 @@ import 'leaflet.heat';
 import L from 'leaflet';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
-import { getCrimeHeatmapData } from '../../services/crimeService';
+import { getCrimes } from '../../services/crimeService';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -54,7 +54,7 @@ const HeatmapView = () => {
   const [heatmapData, setHeatmapData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [mapCenter, setMapCenter] = useState([40.7128, -74.0060]); // Default to NYC
+  const [mapCenter, setMapCenter] = useState([-4.0435, 39.6682]); // Default to NYC
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
     endDate: new Date(),
@@ -129,30 +129,18 @@ const HeatmapView = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = {
         startDate: dateRange.startDate.toISOString().split('T')[0],
         endDate: dateRange.endDate.toISOString().split('T')[0],
         lat: mapCenter[0],
         lng: mapCenter[1],
-        radius: 10, // km radius to fetch data for
+        radius: 10, // Example radius in km
+        crimeTypes: selectedCrimeTypes,
       };
-      
-      if (selectedCrimeTypes.length > 0) {
-        params.crimeTypes = selectedCrimeTypes.join(',');
-      }
-      
-      const data = await getCrimeHeatmapData(params);
-      
-      // Transform data to format required by leaflet.heat
-      // [lat, lng, intensity]
-      const heatPoints = Array.isArray(data) ? data.map(point => [
-        point.latitude,
-        point.longitude,
-        point.weight || 1 // Use weight if available, otherwise default to 1
-      ]): [];
-      
-      setHeatmapData(heatPoints);
+
+      const crimes = await getCrimes(params);
+      setHeatmapData(crimes.map(crime => [crime.latitude, crime.longitude, 1]));
     } catch (err) {
       console.error('Error fetching heatmap data:', err);
       setError('Failed to load heatmap data. Please try again later.');
@@ -160,10 +148,10 @@ const HeatmapView = () => {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchHeatmapData();
-  }, []);
+  }, [dateRange, selectedCrimeTypes, mapCenter]);
   
   const handleApplyFilters = () => {
     fetchHeatmapData();

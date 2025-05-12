@@ -3,7 +3,6 @@ import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 import LocationSearch from './LocationSearch';
 
-// Updated crime types to match backend categories with correct colors
 const CRIME_TYPES = [
   { value: 'HOMICIDE', label: 'Homicide', color: '#FF0000' },
   { value: 'OFFENSES', label: 'Offenses', color: '#FF4500' },
@@ -30,18 +29,17 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
     endDate: filters.dateRange?.end || null,
   });
   const [selectedCrimeTypes, setSelectedCrimeTypes] = useState(filters.crimeTypes || []);
-  
   const controlsRef = useRef(null);
-  
+
   const handleToggleControls = () => {
     setIsOpen(!isOpen);
   };
-  
+
   const handleRadiusChange = (e) => {
     const newRadius = Number(e.target.value);
     setSearchRadius(newRadius);
   };
-  
+
   const handleCrimeTypeToggle = (type) => {
     if (selectedCrimeTypes.includes(type)) {
       setSelectedCrimeTypes(selectedCrimeTypes.filter(t => t !== type));
@@ -49,7 +47,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
       setSelectedCrimeTypes([...selectedCrimeTypes, type]);
     }
   };
-  
+
   const handleApplyFilters = () => {
     onFilterChange({
       crimeTypes: selectedCrimeTypes,
@@ -60,19 +58,18 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
       searchRadius,
     });
   };
-  
+
   const handleResetFilters = () => {
     setSearchRadius(500);
     setDateRange({ startDate: null, endDate: null });
     setSelectedCrimeTypes([]);
-    
     onFilterChange({
       crimeTypes: [],
       dateRange: { start: null, end: null },
       searchRadius: 500,
     });
   };
-  
+
   return (
     <div className="absolute top-4 left-4 z-[500]">
       <div className="bg-white rounded-lg shadow-lg">
@@ -91,24 +88,22 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
             </svg>
           )}
         </button>
-        
+
         {isOpen && (
           <div ref={controlsRef} className="mt-2 p-4 bg-white rounded-lg shadow-lg w-72">
             <div className="space-y-4">
               <h3 className="text-lg font-medium text-gray-900">Map Controls</h3>
-              
-              {/* Location Search */}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Search Location
                 </label>
                 <LocationSearch onLocationSelect={onLocationChange} />
               </div>
-              
-              {/* Search Radius */}
+
               <div>
                 <label htmlFor="radius" className="block text-sm font-medium text-gray-700 mb-1">
-                  Search Radius: {searchRadius} km
+                  Search Radius: {searchRadius} m
                 </label>
                 <input
                   id="radius"
@@ -121,8 +116,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
                   className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                 />
               </div>
-              
-              {/* Date Range */}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Date Range
@@ -150,8 +144,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
                   />
                 </div>
               </div>
-              
-              {/* Crime Types with color indicators */}
+
               <div>
                 <span className="block text-sm font-medium text-gray-700 mb-1">
                   Crime Types
@@ -180,8 +173,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
                   ))}
                 </div>
               </div>
-              
-              {/* Action buttons */}
+
               <div className="flex space-x-2 pt-2">
                 <button
                   onClick={handleApplyFilters}
@@ -197,7 +189,6 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh }) =
                 </button>
               </div>
 
-              {/* Refresh data button */}
               <div>
                 <button
                   onClick={onRefresh}

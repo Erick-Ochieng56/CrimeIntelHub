@@ -3,7 +3,7 @@ import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
-import { getTimeSeriesData } from '../../services/crimeService';
+import { getTimeSeriesData, getCrimes } from '../../services/crimeService';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -20,6 +20,7 @@ const TimeSeriesAnalysis = () => {
   });
   const [selectedCrimeTypes, setSelectedCrimeTypes] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('all');
+  const [mapCenter, setMapCenter] = useState([0, 0]); // Example map center coordinates
   
   const crimeTypes = [
     { value: 'THEFT', label: 'Theft' },
@@ -205,51 +206,47 @@ const TimeSeriesAnalysis = () => {
     }
   };
   
-  // Fetch time series data
   // Fetch time series data with improved error handling
   const fetchTimeSeriesData = async () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = {
         startDate: dateRange.startDate.toISOString().split('T')[0],
         endDate: dateRange.endDate.toISOString().split('T')[0],
-        aggregation: aggregationPeriod,
+        lat: selectedLocation !== 'all' ? mapCenter[0] : undefined,
+        lng: selectedLocation !== 'all' ? mapCenter[1] : undefined,
+        radius: selectedLocation !== 'all' ? 10 : undefined, // Example radius in km
+        crimeTypes: selectedCrimeTypes,
       };
-      
-      if (selectedCrimeTypes.length > 0) {
-        params.crimeTypes = selectedCrimeTypes;
-      }
-      
-      if (selectedLocation !== 'all') {
-        params.location = selectedLocation;
-      }
-      
-      const data = await getTimeSeriesData(params);
-      
-      // Validate data structure
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid data format received');
-      }
 
-      // Additional validation for series data
-      if (!data.series || typeof data.series !== 'object') {
-        throw new Error('No series data available');
-      }
+      const crimes = await getCrimes(params);
+      const groupedData = crimes.reduce((acc, crime) => {
+        const date = new Date(crime.date).toISOString().split('T')[0];
+        if (!acc[date]) acc[date] = 0;
+        acc[date] += 1;
+        return acc;
+      }, {});
 
-      setTimeSeriesData(data);
+      setTimeSeriesData({
+        labels: Object.keys(groupedData),
+        series: [{
+          name: 'Crimes',
+          data: Object.values(groupedData),
+        }],
+      });
     } catch (err) {
       console.error('Error fetching time series data:', err);
-      setError(err.message || 'Failed to load time series data. Please try again later.');
+      setError('Failed to load time series data. Please try again later.');
     } finally {
       setLoading(false);
     }
   };
-  
+
   useEffect(() => {
     fetchTimeSeriesData();
-  }, []);
+  }, [dateRange, selectedCrimeTypes, selectedLocation]);
   
   const handleApplyFilters = () => {
     fetchTimeSeriesData();
