@@ -1,6 +1,6 @@
 # CrimeIntel 🕵️‍♂️📍
 
-**CrimeIntel** is a web-based Crime Detection and Visualization System developed as a final year project for Maseno University. The system helps users and law enforcement agencies track, report, and visualize crime data in real-time using an interactive map and dashboard analytics.
+**CrimeIntel** is a web-based Crime Detection and Visualization System developed as a final year project for Maseno University. The system helps users and law enforcement agencies track, and visualize crime data in real-time using an interactive map and dashboard analytics.
 
 ## 🚀 Features
 
