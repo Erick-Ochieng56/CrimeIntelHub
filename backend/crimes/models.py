@@ -7,7 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from agencies.models import Agency
-
+from decimal import Decimal
 
 class CrimeCategory(models.Model):
     """Model for crime categories."""
@@ -117,7 +117,7 @@ class Crime(gis_models.Model):
         decimal_places=2, 
         blank=True, 
         null=True,
-        validators=[MinValueValidator(0)]
+        validators=[MinValueValidator('0')]
     )
     weapon_used = models.BooleanField(default=False)
     weapon_type = models.CharField(max_length=100, blank=True, null=True)
@@ -233,8 +233,8 @@ class CrimeStatistic(models.Model):
     property_damage = models.DecimalField(
         max_digits=12, 
         decimal_places=2, 
-        default=0,
-        validators=[MinValueValidator(0)]
+        default=('0'),
+        validators=[MinValueValidator('0')]
     )
     arrests = models.IntegerField(default=0, validators=[MinValueValidator(0)])
 

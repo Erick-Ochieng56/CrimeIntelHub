@@ -5,7 +5,7 @@ from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
-
+from decimal import Decimal
 
 class User(AbstractUser):
     """Custom user model."""
@@ -142,7 +142,7 @@ class UserPreference(models.Model):
     # Notification preferences
     quiet_hours_start = models.TimeField(blank=True, null=True)
     quiet_hours_end = models.TimeField(blank=True, null=True)
-    notification_radius = models.DecimalField(max_digits=5, decimal_places=2, default=1.0)  # km
+    notification_radius = models.DecimalField(max_digits=5, decimal_places=2, default=('1.0'))  # km
 
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
