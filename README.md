@@ -1,21 +1,325 @@
-# CrimeIntel 🕵️‍♂️📍
+# CrimeIntelHub - Crime Analysis and Intelligence Platform
 
-**CrimeIntel** is a web-based Crime Detection and Visualization System developed as a final year project for Maseno University. The system helps users and law enforcement agencies track, and visualize crime data in real-time using an interactive map and dashboard analytics.
+A comprehensive full-stack platform for crime data analysis, visualization, and intelligence gathering. Built with Django, React, and modern GIS technologies.
 
-## 🚀 Features
+## 🚨 Security Notice
 
-- 🔐 **User Authentication**: Role-based access for Normal Users, Agencies, and Admins.
-- 🗺️ **Interactive Map Visualization**: Crime hotspots and incident locations displayed using OpenStreetMap.
-- 📊 **Data Analytics Dashboard**: View crime trends, regional statistics, and crime-type breakdowns.
-- 📂 **Admin Panel**: Manage reports, view audit logs, update agency information, and generate insights.
-- 📌 **Location-based Filtering**: Search and filter crime data by region, date, or type.
+**CRITICAL**: This application contains sensitive crime data and requires proper security configuration before production deployment. See [Security Configuration](#security-configuration) section.
 
-## 🛠️ Tech Stack
+## 🏗️ Architecture
 
-- **Frontend**: React.js, Tailwind CSS, Vite
-- **Backend**: Django, Django REST Framework
-- **Database**: PostgreSQL
-- **Maps & Geo-Visualization**: OpenStreetMap, Leaflet.js
-- **Authentication**: Django Auth with session-based and token-based login
+- **Backend**: Django 5.1.7 + Django REST Framework + PostGIS
+- **Frontend**: React 18.3.1 + Vite + Tailwind CSS
+- **Database**: PostgreSQL with PostGIS extension
+- **Cache**: Redis
+- **Authentication**: JWT-based with role-based access control
+- **GIS**: Leaflet maps with spatial analysis capabilities
+
+## 🚀 Quick Start
+
+### Prerequisites
+
+- Docker and Docker Compose
+- Node.js 18+ and npm
+- Python 3.11+
+- GDAL libraries (for GIS functionality)
+
+### Option 1: Docker Compose (Recommended)
+
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd CrimeIntelHub
+   ```
+
+2. **Set up environment variables**
+   ```bash
+   cp backend/env.example backend/.env
+   # Edit backend/.env with your configuration
+   ```
+
+3. **Start all services**
+   ```bash
+   docker-compose up -d
+   ```
+
+4. **Initialize the database**
+   ```bash
+   docker-compose exec backend python manage.py migrate
+   docker-compose exec backend python manage.py createsuperuser
+   ```
+
+5. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend API: http://localhost:8000
+   - Admin: http://localhost:8000/admin
+   - Health Check: http://localhost:8000/health
+
+### Option 2: Local Development
+
+1. **Backend Setup**
+   ```bash
+   cd backend
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   pip install -r requirements.txt
+   
+   # Set environment variables
+   cp env.example .env
+   # Edit .env with your configuration
+   
+   # Run migrations
+   python manage.py migrate
+   python manage.py runserver
+   ```
+
+2. **Frontend Setup**
+   ```bash
+   cd frontend
+   npm install
+   npm run dev
+   ```
+
+## 🔐 Security Configuration
+
+### Environment Variables
+
+Create a `.env` file in the backend directory with the following variables:
+
+```bash
+# Django Settings
+SECRET_KEY=your-super-secret-key-here-change-this-in-production
+DEBUG=False
+ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
+
+# Database Configuration
+DB_NAME=crime_analysis_db
+DB_USER=crime_analysis_user
+DB_PASSWORD=your-secure-database-password
+DB_HOST=localhost
+DB_PORT=5432
+
+# Redis Configuration
+REDIS_URL=redis://username:password@host:port/database
+
+# CORS Configuration
+CORS_ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+
+# Email Configuration
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+DEFAULT_FROM_EMAIL=noreply@yourdomain.com
+EMAIL_HOST=smtp.yourdomain.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=your-email@yourdomain.com
+EMAIL_HOST_PASSWORD=your-email-password
+```
+
+### Production Security Checklist
+
+- [ ] Change `SECRET_KEY` to a strong, unique value
+- [ ] Set `DEBUG=False`
+- [ ] Configure `ALLOWED_HOSTS` with your domain
+- [ ] Use HTTPS with proper SSL certificates
+- [ ] Configure secure database connections
+- [ ] Set up proper firewall rules
+- [ ] Enable rate limiting
+- [ ] Configure logging and monitoring
+- [ ] Set up backup procedures
+
+## 📊 Features
+
+### User Management
+- Multi-role authentication (Admin, Agency, Regular User)
+- JWT-based authentication
+- Role-based access control
+- User activity tracking
+
+### Crime Data Management
+- Comprehensive crime incident tracking
+- Geographic data with PostGIS
+- Media attachments and notes
+- Data import/export capabilities
+
+### Analytics & Visualization
+- Interactive crime maps
+- Heatmap generation
+- Time series analysis
+- Predictive analytics
+- Statistical reporting
+
+### Agency Features
+- Data import workflows
+- API key management
+- Jurisdiction management
+- Reporting tools
+
+## 🗄️ Database Schema
+
+### Core Models
+- **User**: Extended user model with role-based permissions
+- **Agency**: Law enforcement agency information
+- **Crime**: Crime incident data with spatial coordinates
+- **CrimeCategory**: Hierarchical crime classification
+- **District/Neighborhood**: Geographic boundaries
+- **CrimeAnalytics**: Predictive models and trends
+
+### Key Relationships
+- Users belong to agencies
+- Crimes are associated with locations and categories
+- Geographic hierarchy: Agency → District → Neighborhood → Crime
+
+## 🔧 Development
+
+### Code Quality
+
+- **Backend**: Follow Django best practices
+- **Frontend**: Use React hooks and modern patterns
+- **Testing**: Write unit and integration tests
+- **Documentation**: Maintain API documentation
+
+### API Structure
+
+```
+/api/
+├── auth/          # Authentication endpoints
+├── agencies/      # Agency management
+├── crimes/        # Crime data CRUD
+├── analytics/     # Crime analysis
+├── alerts/        # Crime alerts
+├── reports/       # Report generation
+└── etl/          # Data import/export
+```
+
+### Testing
+
+```bash
+# Backend tests
+cd backend
+python manage.py test
+
+# Frontend tests
+cd frontend
+npm test
+```
+
+## 📈 Performance & Scalability
+
+### Database Optimization
+- Comprehensive indexing strategy
+- Query optimization
+- Connection pooling
+- Read replicas (for production)
+
+### Caching Strategy
+- Redis for session storage
+- API response caching
+- Geographic data caching
+- User preference caching
+
+### Frontend Optimization
+- Code splitting and lazy loading
+- Image optimization
+- Bundle size monitoring
+- Service worker for offline capabilities
+
+## 🚨 Monitoring & Alerting
+
+### Health Checks
+- Database connectivity
+- Redis availability
+- API response times
+- Service status monitoring
+
+### Logging
+- Structured logging with JSON format
+- Error tracking and alerting
+- Performance metrics
+- Security event logging
+
+### Error Handling
+- Comprehensive error boundaries
+- User-friendly error messages
+- Error reporting to external services
+- Graceful degradation
+
+## 🚀 Deployment
+
+### Production Deployment
+
+1. **Environment Setup**
+   ```bash
+   # Set production environment variables
+   export DJANGO_SETTINGS_MODULE=crime_analysis.settings.production
+   export DEBUG=False
+   ```
+
+2. **Database Migration**
+   ```bash
+   python manage.py migrate --settings=crime_analysis.settings.production
+   python manage.py collectstatic --settings=crime_analysis.settings.production
+   ```
+
+3. **Service Deployment**
+   ```bash
+   # Using Docker Compose
+   docker-compose -f docker-compose.prod.yml up -d
+   
+   # Or using traditional deployment
+   gunicorn crime_analysis.wsgi:application --bind 0.0.0.0:8000
+   ```
+
+### CI/CD Pipeline
+
+- Automated testing on pull requests
+- Security scanning
+- Docker image building
+- Automated deployment to staging/production
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+### Development Guidelines
+
+- Follow the existing code style
+- Write meaningful commit messages
+- Update documentation as needed
+- Test your changes thoroughly
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: Check the `/docs` folder
+- **Issues**: Report bugs via GitHub Issues
+- **Security**: Report security issues privately
+- **Community**: Join our discussion forum
+
+## 🔄 Changelog
+
+### Version 1.0.0 (Current)
+- Initial release with core functionality
+- Multi-role authentication system
+- Crime data management
+- Geographic visualization
+- Basic analytics
+
+### Upcoming Features
+- Real-time notifications
+- Advanced machine learning models
+- Mobile application
+- API versioning
+- Enhanced security features
+
+---
+
+**⚠️ Important**: This application handles sensitive crime data. Ensure proper security measures are in place before deployment.
 
 

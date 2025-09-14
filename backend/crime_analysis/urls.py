@@ -8,7 +8,11 @@ from django.conf.urls.static import static
 from rest_framework import permissions
 from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
+from django.db import connection
+from django.core.cache import cache
+import redis
+import time
 
 # Swagger/OpenAPI documentation setup
 schema_view = get_schema_view(
@@ -23,6 +27,57 @@ schema_view = get_schema_view(
     public=True,
     permission_classes=(permissions.AllowAny,),
 )
+
+# Health check view function
+def health_check(request):
+    """Health check endpoint for monitoring and load balancers."""
+    start_time = time.time()
+    
+    # Check database connection
+    db_status = 'healthy'
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT 1")
+            db_response_time = time.time() - start_time
+    except Exception as e:
+        db_status = 'unhealthy'
+        db_response_time = None
+    
+    # Check Redis connection
+    redis_status = 'healthy'
+    redis_response_time = None
+    try:
+        redis_start = time.time()
+        cache.get('health_check')
+        redis_response_time = time.time() - redis_start
+    except Exception as e:
+        redis_status = 'unhealthy'
+    
+    # Overall health status
+    overall_status = 'healthy' if db_status == 'healthy' and redis_status == 'healthy' else 'unhealthy'
+    
+    health_data = {
+        'status': overall_status,
+        'timestamp': time.time(),
+        'version': '1.0.0',
+        'services': {
+            'database': {
+                'status': db_status,
+                'response_time_ms': round(db_response_time * 1000, 2) if db_response_time else None
+            },
+            'cache': {
+                'status': redis_status,
+                'response_time_ms': round(redis_response_time * 1000, 2) if redis_response_time else None
+            }
+        },
+        'environment': {
+            'debug': settings.DEBUG,
+            'allowed_hosts': settings.ALLOWED_HOSTS[:3] if len(settings.ALLOWED_HOSTS) > 3 else settings.ALLOWED_HOSTS
+        }
+    }
+    
+    status_code = 200 if overall_status == 'healthy' else 503
+    return JsonResponse(health_data, status=status_code)
 
 # Simple home page view function
 def home_page(request):
@@ -67,11 +122,27 @@ def home_page(request):
             .endpoint p {
                 margin: 0;
             }
+            .status {
+                display: inline-block;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: bold;
+                text-transform: uppercase;
+            }
+            .status.healthy { background: #d4edda; color: #155724; }
+            .status.unhealthy { background: #f8d7da; color: #721c24; }
         </style>
     </head>
     <body>
         <h1>Crime Analysis System API</h1>
         <p>Welcome to the Crime Analysis System API. This backend provides comprehensive crime data analysis, visualization, and reporting capabilities.</p>
+        
+        <h2>System Status</h2>
+        <div class="endpoint">
+            <h3><a href="/health/">Health Check</a></h3>
+            <p>System health monitoring and service status</p>
+        </div>
         
         <h2>API Endpoints</h2>
         
@@ -135,6 +206,9 @@ def home_page(request):
 urlpatterns = [
     # Home page
     path('', home_page, name='home'),
+    
+    # Health check
+    path('health/', health_check, name='health_check'),
     
     # Admin and documentation
     path('admin/', admin.site.urls),

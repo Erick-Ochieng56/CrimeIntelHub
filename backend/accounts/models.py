@@ -13,8 +13,10 @@ class User(AbstractUser):
         ('admin', 'System Administrator'),
         ('agency', 'Agency User'),
         ('user', 'Regular User'),
-    )   # Add user type field
+    )
+    
     user_type = models.CharField(max_length=10, choices=USER_TYPE_CHOICES, default='user')
+    # Use string reference to avoid circular import
     agency = models.ForeignKey('agencies.Agency', on_delete=models.SET_NULL, null=True, blank=True, related_name='users')
 
     # Additional fields
@@ -22,7 +24,8 @@ class User(AbstractUser):
     title = models.CharField(max_length=100, blank=True)
     bio = models.TextField(blank=True)
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
-     # Convenience properties
+    
+    # Convenience properties
     @property
     def is_admin_user(self):
         return self.user_type == 'admin' or self.is_staff
@@ -34,6 +37,7 @@ class User(AbstractUser):
     @property
     def is_regular_user(self):
         return self.user_type == 'user'
+    
     # Notification preferences
     email_notifications = models.BooleanField(default=True)
     push_notifications = models.BooleanField(default=True)
@@ -48,9 +52,41 @@ class User(AbstractUser):
         ordering = ['username']
         verbose_name = _('user')
         verbose_name_plural = _('users')
+        indexes = [
+            models.Index(fields=['user_type']),
+            models.Index(fields=['email']),
+            models.Index(fields=['username']),
+            models.Index(fields=['created_at']),
+            models.Index(fields=['last_login']),
+        ]
 
     def __str__(self):
         return self.get_full_name() or self.username
+
+    def save(self, *args, **kwargs):
+        # Ensure only one user can be primary contact for an agency
+        if self.user_type == 'agency' and self.agency:
+            # Check if this user should be the primary contact
+            if not self.agency.contacts.filter(is_primary=True).exists():
+                # Create or update primary contact
+                from agencies.models import AgencyContact
+                contact, created = AgencyContact.objects.get_or_create(
+                    agency=self.agency,
+                    defaults={
+                        'name': self.get_full_name() or self.username,
+                        'email': self.email,
+                        'phone': self.phone,
+                        'is_primary': True,
+                        'title': self.title or 'Primary Contact'
+                    }
+                )
+                if not created:
+                    contact.name = self.get_full_name() or self.username
+                    contact.email = self.email
+                    contact.phone = self.phone
+                    contact.save()
+        
+        super().save(*args, **kwargs)
 
 
 class UserProfile(models.Model):
@@ -75,6 +111,10 @@ class UserProfile(models.Model):
     class Meta:
         verbose_name = _('user profile')
         verbose_name_plural = _('user profiles')
+        indexes = [
+            models.Index(fields=['badge_number']),
+            models.Index(fields=['department']),
+        ]
 
     def __str__(self):
         return f"{self.user.get_full_name()}'s Profile"
@@ -111,6 +151,10 @@ class UserPreference(models.Model):
     class Meta:
         verbose_name = _('user preference')
         verbose_name_plural = _('user preferences')
+        indexes = [
+            models.Index(fields=['theme']),
+            models.Index(fields=['default_view']),
+        ]
 
     def __str__(self):
         return f"{self.user.username}'s Preferences"
@@ -131,6 +175,12 @@ class PasswordResetToken(models.Model):
         ordering = ['-created_at']
         verbose_name = _('password reset token')
         verbose_name_plural = _('password reset tokens')
+        indexes = [
+            models.Index(fields=['token']),
+            models.Index(fields=['expires_at']),
+            models.Index(fields=['used']),
+            models.Index(fields=['created_at']),
+        ]
 
     def __str__(self):
         return f"Reset token for {self.user.username}"
@@ -139,6 +189,12 @@ class PasswordResetToken(models.Model):
     def is_expired(self):
         """Check if the token has expired."""
         return self.expires_at <= timezone.now()
+
+    def clean(self):
+        """Validate the model."""
+        from django.core.exceptions import ValidationError
+        if self.expires_at and self.expires_at <= timezone.now():
+            raise ValidationError('Token cannot expire in the past')
 
 
 class UserActivity(models.Model):
@@ -170,6 +226,12 @@ class UserActivity(models.Model):
         ordering = ['-timestamp']
         verbose_name = _('user activity')
         verbose_name_plural = _('user activities')
+        indexes = [
+            models.Index(fields=['activity_type']),
+            models.Index(fields=['timestamp']),
+            models.Index(fields=['ip_address']),
+            models.Index(fields=['user', 'timestamp']),
+        ]
 
     def __str__(self):
         return f"{self.user.username} - {self.get_activity_type_display()} at {self.timestamp}"
