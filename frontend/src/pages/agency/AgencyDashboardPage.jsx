@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import axios from '../services/api'; // Import your configured API
-import { AuthContext } from '../context/AuthContext'; // Import the auth context
+import axios from '../../services/api'; // Import your configured API
+import { AuthContext } from '../../context/AuthContext'; // Import the auth context
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';

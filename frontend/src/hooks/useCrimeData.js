@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import { CrimeDataContext } from '../context/CrimeDataContext';
+import CrimeDataContext from '../context/CrimeDataContext'; // Default import instead of named import
 
 /**
  * Custom hook for accessing crime data context

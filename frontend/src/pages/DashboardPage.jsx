@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
 import Dashboard from '../components/dashboard/Dashboard';
 import Loader from '../components/common/Loader';
+import { fetchCrimeData } from '../services/crimeService';
 import { useCrimeData } from '../hooks/useCrimeData';
 
 const DashboardPage = () => {

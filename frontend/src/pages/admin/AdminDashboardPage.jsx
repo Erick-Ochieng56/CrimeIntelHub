@@ -15,7 +15,7 @@ import {
   ArcElement
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
-import { fetchAgencies, approveAgency, rejectAgency, getSystemStats } from '../services/adminService';
+import { fetchAgencies, approveAgency, rejectAgency, getSystemStats } from '../../services/adminService';
 
 // Register ChartJS components
 ChartJS.register(
