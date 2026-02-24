@@ -1,17 +1,16 @@
 import React, { useEffect } from 'react';
 import Dashboard from '../components/dashboard/Dashboard';
 import Loader from '../components/common/Loader';
-import { fetchCrimeData } from '../services/crimeService';
 import { useCrimeData } from '../hooks/useCrimeData';
 
 const DashboardPage = () => {
-  const { fetchCrimeData, loading, error } = useCrimeData();
-  
+  const { fetchCrimes, loading, error } = useCrimeData();
+
   useEffect(() => {
     // Fetch crime data when the dashboard page loads
-    fetchCrimeData();
-  }, [fetchCrimeData]);
-  
+    fetchCrimes();
+  }, [fetchCrimes]);
+
   if (loading && !error) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -19,7 +18,7 @@ const DashboardPage = () => {
       </div>
     );
   }
-  
+
   if (error) {
     return (
       <div className="bg-red-50 border-l-4 border-red-400 p-4 mb-6">
@@ -33,8 +32,8 @@ const DashboardPage = () => {
             <p className="text-sm text-red-700">
               {error}
             </p>
-            <button 
-              onClick={fetchCrimeData} 
+            <button
+              onClick={fetchCrimes}
               className="mt-2 text-sm font-medium text-red-700 hover:text-red-600"
             >
               Try again
@@ -44,7 +43,7 @@ const DashboardPage = () => {
       </div>
     );
   }
-  
+
   return (
     <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
       <Dashboard />

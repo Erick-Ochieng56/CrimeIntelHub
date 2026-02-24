@@ -15,14 +15,17 @@ import UserProfilePage from './pages/UserProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // Agency pages
-import AgencyRegistrationPage from './pages/AgencyRegistrationPage';
-import AgencyRegistrationSuccessPage from './pages/AgencyRegistrationSuccessPage';
-import AgencyLoginPage from './pages/AgencyLoginPage';
-import AgencyDashboardPage from './pages/AgencyDashboardPage';
+import AgencyRegistrationPage from './pages/agency/AgencyRegistrationPage';
+import AgencyRegistrationSuccessPage from './pages/agency/AgencyRegistrationSuccessPage';
+import AgencyLoginPage from './pages/agency/AgencyLoginPage';
+import AgencyDashboardPage from './pages/agency/AgencyDashboardPage';
+
+// ETL page
+import ETLPage from './pages/ETLPage';
 
 // Admin pages
-import AdminLoginPage from './pages/AdminLoginPage';
-import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminLoginPage from './pages/admin/AdminLoginPage';
+import AdminDashboardPage from './pages/admin/AdminDashboardPage';
 
 // Auth components
 import Login from './components/user/Login';
@@ -33,15 +36,15 @@ import PasswordReset from './components/user/PasswordReset';
 const ProtectedRoute = ({ children }) => {
   const { isAuthenticated, loading } = useContext(AuthContext);
   const location = useLocation();
-  
+
   if (loading) {
     return <div>Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
-  
+
   return children;
 };
 
@@ -49,19 +52,19 @@ const ProtectedRoute = ({ children }) => {
 const AgencyRoute = ({ children }) => {
   const { isAuthenticated, user, loading } = useContext(AuthContext);
   const location = useLocation();
-  
+
   if (loading) {
     return <div>Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/agency/login" state={{ from: location }} replace />;
   }
-  
+
   if (user?.user_type !== 'agency') {
     return <Navigate to="/" replace />;
   }
-  
+
   return children;
 };
 
@@ -69,19 +72,19 @@ const AgencyRoute = ({ children }) => {
 const AdminRoute = ({ children }) => {
   const { isAuthenticated, user, loading } = useContext(AuthContext);
   const location = useLocation();
-  
+
   if (loading) {
     return <div>Loading...</div>;
   }
-  
+
   if (!isAuthenticated) {
     return <Navigate to="/admin/login" state={{ from: location }} replace />;
   }
-  
+
   if (user?.user_type !== 'admin' && !user?.is_staff) {
     return <Navigate to="/" replace />;
   }
-  
+
   return children;
 };
 
@@ -150,7 +153,7 @@ const routes = [
     path: '/reset-password',
     element: <PasswordReset />,
   },
-  
+
   // Agency routes
   {
     path: '/agencies/register',
@@ -176,7 +179,7 @@ const routes = [
     path: '/agency/data',
     element: (
       <AgencyRoute>
-        <AgencyDashboardPage />
+        <ETLPage />
       </AgencyRoute>
     ),
   },
@@ -184,11 +187,11 @@ const routes = [
     path: '/agency/analytics',
     element: (
       <AgencyRoute>
-        <AnalyticsPage />
+        <AgencyDashboardPage />
       </AgencyRoute>
     ),
   },
-  
+
   // Admin routes
   {
     path: '/admin/login',
@@ -218,7 +221,15 @@ const routes = [
       </AdminRoute>
     ),
   },
-  
+  {
+    path: '/admin/etl',
+    element: (
+      <AdminRoute>
+        <ETLPage />
+      </AdminRoute>
+    ),
+  },
+
   {
     path: '*',
     element: <NotFoundPage />,

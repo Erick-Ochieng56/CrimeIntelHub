@@ -53,7 +53,7 @@ const PredictiveAnalysis = () => {
 
       // Format date in YYYY-MM-DD format
       const formattedDate = selectedDate.toISOString().split('T')[0];
-      
+
       // Prepare coordinates for the API call
       const lat = selectedLocation ? selectedLocation[0] : mapCenter[0];
       const lng = selectedLocation ? selectedLocation[1] : mapCenter[1];
@@ -110,8 +110,9 @@ const PredictiveAnalysis = () => {
         crimeTypes: selectedCrimeType !== 'ALL' ? [selectedCrimeType] : undefined,
       };
 
-      const crimes = await getCrimes(params);
-      
+      const crimesResponse = await getCrimes(params);
+      const crimes = crimesResponse.results || [];
+
       // Transform crime data to match prediction format
       if (Array.isArray(crimes) && crimes.length > 0) {
         setPredictions(crimes.map(crime => ({
@@ -121,9 +122,9 @@ const PredictiveAnalysis = () => {
           crimeType: crime.type || 'UNKNOWN',
           date: crime.date,
           address: crime.block_address,
-          timeOfDay: crime.time ? 
-            (new Date(crime.date + 'T' + crime.time).getHours() < 12 ? 'Morning' : 
-             new Date(crime.date + 'T' + crime.time).getHours() < 18 ? 'Afternoon' : 'Evening') : 
+          timeOfDay: crime.time ?
+            (new Date(crime.date + 'T' + crime.time).getHours() < 12 ? 'Morning' :
+              new Date(crime.date + 'T' + crime.time).getHours() < 18 ? 'Afternoon' : 'Evening') :
             'All Day',
         })));
       } else {
@@ -211,7 +212,7 @@ const PredictiveAnalysis = () => {
 
           <div className="text-sm text-gray-600 mb-4">
             <p>
-              <span className="font-medium">Instructions:</span> Select a date and crime type, then click "Generate Prediction" 
+              <span className="font-medium">Instructions:</span> Select a date and crime type, then click "Generate Prediction"
               to analyze potential crime hotspots. You can also click on the map to select a specific area for analysis.
             </p>
             {selectedLocation && (
@@ -240,9 +241,9 @@ const PredictiveAnalysis = () => {
 
       <Card>
         <div className="h-[500px] w-full">
-          <MapContainer 
-            center={mapCenter} 
-            zoom={13} 
+          <MapContainer
+            center={mapCenter}
+            zoom={13}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
@@ -269,10 +270,10 @@ const PredictiveAnalysis = () => {
             {/* Display prediction circles with safeguard */}
             {Array.isArray(predictions) && predictions.map((pred, index) => {
               // Only render if both latitude and longitude are valid numbers
-              if (typeof pred.latitude === 'number' && 
-                  typeof pred.longitude === 'number' && 
-                  !isNaN(pred.latitude) && 
-                  !isNaN(pred.longitude)) {
+              if (typeof pred.latitude === 'number' &&
+                typeof pred.longitude === 'number' &&
+                !isNaN(pred.latitude) &&
+                !isNaN(pred.longitude)) {
                 return (
                   <Circle
                     key={index}
@@ -334,10 +335,10 @@ const PredictiveAnalysis = () => {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {predictions.map((pred, index) => {
                     // Only include predictions with valid latitude and longitude
-                    if (typeof pred.latitude === 'number' && 
-                        typeof pred.longitude === 'number' && 
-                        !isNaN(pred.latitude) && 
-                        !isNaN(pred.longitude)) {
+                    if (typeof pred.latitude === 'number' &&
+                      typeof pred.longitude === 'number' &&
+                      !isNaN(pred.latitude) &&
+                      !isNaN(pred.longitude)) {
                       return (
                         <tr key={index}>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -350,18 +351,17 @@ const PredictiveAnalysis = () => {
                             {(pred.probability * 100).toFixed(1)}%
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                              pred.probability >= 0.7
+                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${pred.probability >= 0.7
                                 ? 'bg-red-100 text-red-800'
                                 : pred.probability >= 0.4
-                                ? 'bg-yellow-100 text-yellow-800'
-                                : 'bg-green-100 text-green-800'
-                            }`}>
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-green-100 text-green-800'
+                              }`}>
                               {pred.probability >= 0.7
                                 ? 'High'
                                 : pred.probability >= 0.4
-                                ? 'Medium'
-                                : 'Low'}
+                                  ? 'Medium'
+                                  : 'Low'}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
@@ -377,18 +377,18 @@ const PredictiveAnalysis = () => {
             </div>
           ) : !loading && (
             <div className="text-center py-12">
-              <svg 
-                className="mx-auto h-12 w-12 text-gray-400" 
-                xmlns="http://www.w3.org/2000/svg" 
-                fill="none" 
-                viewBox="0 0 24 24" 
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                xmlns="http://www.w3.org/2000/svg"
+                fill="none"
+                viewBox="0 0 24 24"
                 stroke="currentColor"
               >
-                <path 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round" 
-                  strokeWidth={2} 
-                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
                 />
               </svg>
               <h3 className="mt-2 text-sm font-medium text-gray-900">No predictions generated</h3>

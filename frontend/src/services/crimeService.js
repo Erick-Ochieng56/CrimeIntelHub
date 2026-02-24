@@ -3,14 +3,14 @@ import api from './api';
 // Helper function to extract coordinates from various formats
 const extractCoordinates = (crime) => {
   let latitude, longitude;
-  
+
   if (process.env.NODE_ENV === 'development') {
     console.debug('Extracting coordinates from crime:', crime.id, crime.case_number);
     if (crime.location) {
       console.debug('Location object:', crime.location);
     }
   }
-  
+
   if (crime.location) {
     if (typeof crime.location.y === 'number' && typeof crime.location.x === 'number') {
       latitude = crime.location.y;
@@ -24,14 +24,14 @@ const extractCoordinates = (crime) => {
       latitude = crime.location.coordinates[1];
     }
   }
-  
+
   if (latitude === undefined && crime.latitude !== undefined) {
     latitude = crime.latitude;
   }
   if (longitude === undefined && crime.longitude !== undefined) {
     longitude = crime.longitude;
   }
-  
+
   return { latitude, longitude };
 };
 
@@ -55,7 +55,7 @@ const inferCategoryFromDescription = (description) => {
 // Transform crime objects
 const transformCrime = (crime) => {
   const { latitude, longitude } = extractCoordinates(crime);
-  
+
   if (latitude === undefined || longitude === undefined) {
     console.warn(`Missing coordinates for crime ID ${crime.id}, case ${crime.case_number}`);
   }
@@ -95,13 +95,14 @@ export const getCrimes = async (params = {}) => {
     const requestParams = {
       lat: params.lat ? parseFloat(params.lat) : undefined,
       lng: params.lng ? parseFloat(params.lng) : undefined,
-      radius: params.radius ? parseFloat(params.radius) || 5000 : 5000,
+      radius: params.radius ? parseFloat(params.radius) || 50 : 50, // Default to 50km
       date_from: params.startDate,
       date_to: params.endDate,
       category: Array.isArray(params.crimeTypes) && params.crimeTypes.length > 0
         ? params.crimeTypes.filter(type => type && typeof type === 'string').join(',')
         : undefined,
-      page: params.page ? parseInt(params.page, 10) : undefined,
+      page: params.page ? parseInt(params.page, 10) : 1,
+      limit: params.limit ? parseInt(params.limit, 10) : 100,
     };
 
     // Remove undefined or empty parameters
@@ -113,27 +114,21 @@ export const getCrimes = async (params = {}) => {
 
     console.log('Fetching crimes with params:', requestParams);
 
-    let allResults = [];
-    let nextPageUrl = 'crimes/crimes/';
+    const response = await api.get('crimes/', {
+      params: requestParams,
+    });
 
-    while (nextPageUrl) {
-      const response = await api.get(nextPageUrl, {
-        params: nextPageUrl === 'crimes/crimes/' ? requestParams : undefined,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-        },
-      });
+    console.debug('Crime API response:', response.data);
 
-      console.debug('Crime API response:', response.data);
+    const results = Array.isArray(response.data.results) ? response.data.results : [];
+    const transformedCrimes = results.map(transformCrime);
 
-      const results = Array.isArray(response.data.results) ? response.data.results : [];
-      allResults = allResults.concat(results);
-      nextPageUrl = response.data.next;
-    }
-
-    const transformedCrimes = allResults.map(transformCrime);
-    console.log(`Fetched ${transformedCrimes.length} crimes:`, transformedCrimes);
-    return transformedCrimes;
+    return {
+      results: transformedCrimes,
+      count: response.data.count,
+      next: response.data.next,
+      previous: response.data.previous,
+    };
   } catch (error) {
     console.error('Error fetching crimes:', error, 'Response:', error.response?.data);
     throw new Error(error.response?.data?.detail || 'Failed to fetch crime data');
@@ -155,11 +150,8 @@ export const getCrimeSummaries = async (params = {}) => {
 
     console.log('Fetching crime summaries with params:', requestParams);
 
-    const response = await api.get('crimes/crimes/download_summary/', {
+    const response = await api.get('crimes/download_summary/', {
       params: requestParams,
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-      },
       responseType: 'json',
     });
 
@@ -171,7 +163,25 @@ export const getCrimeSummaries = async (params = {}) => {
   }
 };
 
-// Fetch crime summary for mapping (e.g., heatmap data)
+// Fetch crime heatmap data
+export const getCrimeHeatmap = async (params = {}) => {
+  try {
+    const apiParams = {
+      days: params.days || 30,
+      crime_types: params.crimeTypes?.join(','),
+      agency_id: params.agencyId,
+    };
+
+    console.log('Fetching crime heatmap with params:', apiParams);
+    const response = await api.get('crimes/heatmap/', { params: apiParams });
+    return response.data;
+  } catch (error) {
+    console.error('Error fetching crime heatmap:', error);
+    throw new Error(error.response?.data?.detail || 'Failed to fetch crime heatmap data');
+  }
+};
+
+// Fetch crime summary for mapping (e.g., exported summary data)
 export const getExportedCrimeSummary = async (params = {}) => {
   try {
     const apiParams = {
@@ -185,7 +195,7 @@ export const getExportedCrimeSummary = async (params = {}) => {
       bounds: params.bounds?.join(','),
     };
     console.log('Fetching exported crime summary with params:', apiParams);
-    const response = await api.get('crimes/crimes/heatmap/', { params: apiParams });
+    const response = await api.get('crimes/heatmap/', { params: apiParams });
     return response.data.map(item => {
       const { latitude, longitude } = extractCoordinates(item);
       return {
@@ -200,13 +210,17 @@ export const getExportedCrimeSummary = async (params = {}) => {
   }
 };
 
-// Other service functions remain unchanged
+// Search for a location by query string
 export const searchLocation = async (query) => {
   if (!query || query.trim().length < 2) {
     return [];
   }
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`, {
+      headers: {
+        'User-Agent': 'CrimeIntelHub/1.0'
+      }
+    });
     if (!response.ok) {
       throw new Error('Location search failed');
     }
@@ -220,7 +234,11 @@ export const searchLocation = async (query) => {
 
 export const reverseGeocode = async (lat, lng) => {
   try {
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+      headers: {
+        'User-Agent': 'CrimeIntelHub/1.0'
+      }
+    });
     if (!response.ok) {
       throw new Error('Reverse geocoding failed');
     }
@@ -299,11 +317,7 @@ export const searchCrimes = async (params = {}) => {
     limit: params.limit,
   };
   try {
-    const response = await api.post('/crimes/crimes/search/', apiParams, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('authToken')}`,
-      },
-    });
+    const response = await api.post('/crimes/crimes/search/', apiParams);
     return {
       results: response.data.results,
       total: response.data.count,
@@ -365,5 +379,19 @@ export const getPredictiveAnalysis = async (params = {}) => {
     console.error('Predictive analysis error:', error);
     console.error('Error details:', error.response?.data || error.message);
     throw new Error(error.response?.data?.error || error.message || 'Failed to fetch predictive analysis');
+  }
+};
+
+/**
+ * Get current active crime hotspots
+ * 
+ * @returns {Promise<Array>} Array of hotspot objects
+ */
+export const getCurrentHotspots = async () => {
+  try {
+    const response = await api.get('/analytics/hotspots/current/');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.formattedMessage || 'Failed to fetch current hotspots');
   }
 };

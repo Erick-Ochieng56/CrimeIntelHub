@@ -10,16 +10,20 @@ export const searchLocation = async (query) => {
   if (!query || query.trim().length < 2) {
     return [];
   }
-  
+
   try {
     // Use a geocoding service - this example uses Nominatim (OpenStreetMap's geocoder)
     // In a production app, you might want to use a commercial service like Google Maps, Mapbox, etc.
-    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-    
+    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`, {
+      headers: {
+        'User-Agent': 'CrimeIntelHub/1.0'
+      }
+    });
+
     if (!response.ok) {
       throw new Error('Location search failed');
     }
-    
+
     const data = await response.json();
     return data;
   } catch (error) {
@@ -38,12 +42,16 @@ export const searchLocation = async (query) => {
 export const reverseGeocode = async (lat, lng) => {
   try {
     // Use a geocoding service
-    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
-    
+    const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, {
+      headers: {
+        'User-Agent': 'CrimeIntelHub/1.0'
+      }
+    });
+
     if (!response.ok) {
       throw new Error('Reverse geocoding failed');
     }
-    
+
     const data = await response.json();
     return data;
   } catch (error) {
@@ -86,7 +94,7 @@ export const getCrimeClusters = async (params = {}) => {
       start_date: params.startDate,
       end_date: params.endDate,
     };
-    
+
     const response = await api.get('crimes/heatmap/', { params: apiParams });
     return response.data;
   } catch (error) {

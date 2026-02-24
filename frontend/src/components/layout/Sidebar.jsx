@@ -5,7 +5,7 @@ import { useAuth } from '../../hooks/useAuth';
 const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
   const { user } = useAuth();
   const location = useLocation();
-  
+
   const navigation = [
     { name: 'Home', href: '/', icon: HomeIcon },
     { name: 'Crime Map', href: '/map', icon: MapIcon },
@@ -15,7 +15,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     { name: 'Reports', href: '/reports', icon: ReportIcon },
     { name: 'Alerts', href: '/alerts', icon: AlertIcon },
   ];
-  
+
   // Filter navigation items based on authentication
   const filteredNavigation = navigation.filter(item => {
     if (['/dashboard', '/analytics', '/reports', '/alerts'].includes(item.href)) {
@@ -23,17 +23,26 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
     }
     return true;
   });
-  
+
+  // Add role-specific navigation items
+  if (user?.user_type === 'agency') {
+    filteredNavigation.push({ name: 'Agency Dashboard', href: '/agency/dashboard', icon: DashboardIcon });
+  }
+
+  if (user?.user_type === 'admin' || user?.is_staff) {
+    filteredNavigation.push({ name: 'Admin Dashboard', href: '/admin/dashboard', icon: DashboardIcon });
+  }
+
   return (
     <>
       {/* Mobile sidebar backdrop */}
       {isMobileOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-20 bg-gray-600 bg-opacity-75 lg:hidden"
           onClick={() => setIsMobileOpen(false)}
         />
       )}
-      
+
       {/* Sidebar for mobile */}
       <div className={`fixed inset-0 flex z-30 lg:hidden transition-opacity duration-300 ease-linear ${isMobileOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className={`relative flex-1 flex flex-col max-w-xs w-full bg-white transform transition ease-in-out duration-300 ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
@@ -49,7 +58,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               </svg>
             </button>
           </div>
-          
+
           <div className="flex-1 h-0 pt-5 pb-4 overflow-y-auto">
             <div className="flex-shrink-0 flex items-center px-4">
               <span className="text-xl font-bold text-blue-600">CrimeTrack</span>
@@ -60,20 +69,18 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                   key={item.name}
                   to={item.href}
                   className={({ isActive }) =>
-                    `group flex items-center px-2 py-2 text-base font-medium rounded-md ${
-                      isActive
-                        ? 'bg-blue-100 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    `group flex items-center px-2 py-2 text-base font-medium rounded-md ${isActive
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                     }`
                   }
                   onClick={() => setIsMobileOpen(false)}
                 >
                   <item.icon
-                    className={`mr-4 flex-shrink-0 h-6 w-6 ${
-                      location.pathname === item.href
+                    className={`mr-4 flex-shrink-0 h-6 w-6 ${location.pathname === item.href
                         ? 'text-blue-600'
                         : 'text-gray-400 group-hover:text-gray-500'
-                    }`}
+                      }`}
                     aria-hidden="true"
                   />
                   {item.name}
@@ -81,7 +88,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
               ))}
             </nav>
           </div>
-          
+
           {user && (
             <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
               <div className="flex-shrink-0 group block">
@@ -110,7 +117,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
           {/* Force sidebar to shrink to fit close icon */}
         </div>
       </div>
-      
+
       {/* Static sidebar for desktop */}
       <div className="hidden lg:flex lg:flex-shrink-0">
         <div className="flex flex-col w-64">
@@ -125,19 +132,17 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                     key={item.name}
                     to={item.href}
                     className={({ isActive }) =>
-                      `group flex items-center px-2 py-2 text-sm font-medium rounded-md ${
-                        isActive
-                          ? 'bg-blue-100 text-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      `group flex items-center px-2 py-2 text-sm font-medium rounded-md ${isActive
+                        ? 'bg-blue-100 text-blue-600'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                       }`
                     }
                   >
                     <item.icon
-                      className={`mr-3 flex-shrink-0 h-6 w-6 ${
-                        location.pathname === item.href
+                      className={`mr-3 flex-shrink-0 h-6 w-6 ${location.pathname === item.href
                           ? 'text-blue-600'
                           : 'text-gray-400 group-hover:text-gray-500'
-                      }`}
+                        }`}
                       aria-hidden="true"
                     />
                     {item.name}
@@ -145,7 +150,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
                 ))}
               </nav>
             </div>
-            
+
             {user && (
               <div className="flex-shrink-0 flex border-t border-gray-200 p-4">
                 <div className="flex-shrink-0 w-full group block">

@@ -3,12 +3,13 @@ Views for the crime_analytics app.
 """
 
 from rest_framework import viewsets, permissions, status
-from rest_framework.decorators import action, api_view
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
-from django.db.models import Count, Avg
+from django.db.models import Count, Avg, Q
+from django.utils import timezone
 from .models import PredictionModel, HotspotZone, CrimePrediction, PatternAnalysis, DemographicCorrelation, CrimePredictionResult
 from .serializers import PredictionModelSerializer, HotspotZoneSerializer, CrimePredictionSerializer, PatternAnalysisSerializer, DemographicCorrelationSerializer
 from crimes.models import Crime
@@ -31,22 +32,45 @@ class HotspotZoneViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for crime hotspot zones."""
     queryset = HotspotZone.objects.all()
     serializer_class = HotspotZoneSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['crime_types', 'district', 'neighborhood']
     
     @action(detail=False, methods=['get'])
     def current(self, request):
         """Get current active hotspots."""
-        # Implement this later
-        return Response({"detail": "Not implemented yet"}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        today = timezone.now().date()
+        queryset = self.get_queryset().filter(
+            start_date__lte=today,
+            end_date__gte=today
+        )
+
+        # Return simple lat/lng format for frontend map
+        hotspots_data = []
+        for hotspot in queryset:
+            # Get centroid of the hotspot boundary for map display
+            centroid = hotspot.boundary.centroid
+            hotspots_data.append({
+                'id': hotspot.id,
+                'name': hotspot.name,
+                'lat': centroid.y,
+                'lng': centroid.x,
+                'intensity': hotspot.intensity,
+                'start_date': hotspot.start_date.isoformat(),
+                'end_date': hotspot.end_date.isoformat(),
+                'crime_types': [ct.name for ct in hotspot.crime_types.all()],
+                'district': hotspot.district.name if hotspot.district else None,
+                'neighborhood': hotspot.neighborhood.name if hotspot.neighborhood else None,
+            })
+
+        return Response(hotspots_data)
 
 class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for crime predictions."""
     
     queryset = CrimePrediction.objects.all()
     serializer_class = CrimePredictionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['crime_type', 'district', 'neighborhood', 'prediction_date']
     
@@ -99,7 +123,7 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
             if not serializer.data:
                 return Response([])
             
-            # Return the array directly - this is key
+            # Return the array directly
             return Response(serializer.data)
             
         except ValueError:
@@ -129,7 +153,7 @@ class DemographicCorrelationViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for demographic correlations."""
     queryset = DemographicCorrelation.objects.all()
     serializer_class = DemographicCorrelationSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['crime_type', 'demographic_factor', 'district', 'neighborhood']
 
@@ -137,7 +161,7 @@ class CrimeDataViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for fetching crime data for analytics."""
     queryset = Crime.objects.all()
     serializer_class = CrimeListSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def get_queryset(self):
         """Apply filters for analytics-specific queries."""
@@ -215,3 +239,41 @@ def predict_crime(request):
         })
     except Exception as e:
         return Response({"error": f"Failed to save prediction result: {str(e)}"}, status=500)
+
+
+@api_view(['POST'])
+def generate_predictions(request):
+    """
+    Generate crime predictions for a specified date range.
+    """
+    # Check permissions
+    if not request.user.is_authenticated:
+        return Response({'error': 'Authentication required'}, status=status.HTTP_401_UNAUTHORIZED)
+
+    from django.core.management import call_command
+
+    date = request.data.get('date')
+    days_ahead = request.data.get('days_ahead', 7)
+    crime_types = request.data.get('crime_types')
+
+    try:
+        # Call the management command
+        options = {'days_ahead': days_ahead, 'verbosity': 1}
+        if date:
+            options['date'] = date
+        if crime_types:
+            options['crime_types'] = crime_types
+
+        call_command('generate_predictions', **options)
+
+        return Response({
+            'message': f'Successfully generated predictions for {days_ahead} days',
+            'date': date or timezone.now().date().isoformat(),
+            'days_ahead': days_ahead
+        })
+
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to generate predictions: {str(e)}'},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )

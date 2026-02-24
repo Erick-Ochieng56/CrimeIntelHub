@@ -223,6 +223,7 @@ urlpatterns = [
     path('api/alerts/', include('crime_alerts.urls', namespace='crime_alerts')),
     path('api/reports/', include('crime_reports.urls', namespace='crime_reports')),
     path('api/etl/', include('crime_etl.urls', namespace='crime_etl')),
+    path('api/maps/', include('maps.urls', namespace='maps')),
     
     # API authentication
     path('api-auth/', include('rest_framework.urls')),

@@ -21,7 +21,7 @@ const TimeSeriesAnalysis = () => {
   const [selectedCrimeTypes, setSelectedCrimeTypes] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('all');
   const [mapCenter, setMapCenter] = useState([0, 0]); // Example map center coordinates
-  
+
   const crimeTypes = [
     { value: 'THEFT', label: 'Theft' },
     { value: 'ASSAULT', label: 'Assault' },
@@ -32,7 +32,7 @@ const TimeSeriesAnalysis = () => {
     { value: 'FRAUD', label: 'Fraud' },
     { value: 'OTHER', label: 'Other' },
   ];
-  
+
   const locations = [
     { value: 'all', label: 'All Locations' },
     { value: 'downtown', label: 'Downtown' },
@@ -41,7 +41,7 @@ const TimeSeriesAnalysis = () => {
     { value: 'east', label: 'East Area' },
     { value: 'west', label: 'West Area' },
   ];
-  
+
   const aggregationOptions = [
     { value: 'daily', label: 'Daily' },
     { value: 'weekly', label: 'Weekly' },
@@ -49,19 +49,19 @@ const TimeSeriesAnalysis = () => {
     { value: 'quarterly', label: 'Quarterly' },
     { value: 'yearly', label: 'Yearly' },
   ];
-  
+
   // Create chart with time series data
   useEffect(() => {
     if (!timeSeriesData || !chartRef.current) return;
-    
-    
+
+
     // Destroy existing chart if it exists
     if (chartInstance.current) {
       chartInstance.current.destroy();
     }
-    
+
     const ctx = chartRef.current.getContext('2d');
-    
+
     // Prepare data for the chart
     const datasets = Object.entries(timeSeriesData.series).map(([crimeType, data], index) => {
       const colorMap = {
@@ -74,7 +74,7 @@ const TimeSeriesAnalysis = () => {
         FRAUD: 'rgba(107, 70, 193, 0.7)', // indigo
         OTHER: 'rgba(156, 163, 175, 0.7)', // gray
       };
-      
+
       return {
         label: crimeType,
         data: data,
@@ -87,7 +87,7 @@ const TimeSeriesAnalysis = () => {
         pointHoverRadius: 5,
       };
     });
-    
+
     chartInstance.current = new Chart(ctx, {
       type: 'line',
       data: {
@@ -115,7 +115,7 @@ const TimeSeriesAnalysis = () => {
             padding: 10,
             cornerRadius: 4,
             callbacks: {
-              title: function(context) {
+              title: function (context) {
                 const label = context[0].label;
                 // Format date based on aggregation period
                 return label;
@@ -172,14 +172,14 @@ const TimeSeriesAnalysis = () => {
         },
       },
     });
-    
+
     return () => {
       if (chartInstance.current) {
         chartInstance.current.destroy();
       }
     };
   }, [timeSeriesData]);
-  
+
   // Helper function to get appropriate time unit for chart
   const getTimeUnit = () => {
     switch (aggregationPeriod) {
@@ -197,7 +197,7 @@ const TimeSeriesAnalysis = () => {
         return 'month';
     }
   };
-  
+
   const handleCrimeTypeToggle = (type) => {
     if (selectedCrimeTypes.includes(type)) {
       setSelectedCrimeTypes(selectedCrimeTypes.filter(t => t !== type));
@@ -205,7 +205,7 @@ const TimeSeriesAnalysis = () => {
       setSelectedCrimeTypes([...selectedCrimeTypes, type]);
     }
   };
-  
+
   // Fetch time series data with improved error handling
   const fetchTimeSeriesData = async () => {
     try {
@@ -221,7 +221,8 @@ const TimeSeriesAnalysis = () => {
         crimeTypes: selectedCrimeTypes,
       };
 
-      const crimes = await getCrimes(params);
+      const crimesResponse = await getCrimes({ ...params, limit: 1000 });
+      const crimes = crimesResponse.results || [];
       const groupedData = crimes.reduce((acc, crime) => {
         const date = new Date(crime.date).toISOString().split('T')[0];
         if (!acc[date]) acc[date] = 0;
@@ -247,45 +248,45 @@ const TimeSeriesAnalysis = () => {
   useEffect(() => {
     fetchTimeSeriesData();
   }, [dateRange, selectedCrimeTypes, selectedLocation]);
-  
+
   const handleApplyFilters = () => {
     fetchTimeSeriesData();
   };
-  
+
   // Calculate percentage change from first to last period
-    // Robust trend calculation with more error handling
-    const calculateTrend = (series) => {
-      // Ensure series is an array and has at least two elements
-      if (!Array.isArray(series) || series.length < 2) {
-        return { value: 0, increasing: false };
-      }
-      
-      const first = series[0];
-      const last = series[series.length - 1];
-      
-      // Handle potential non-numeric values
-      if (typeof first !== 'number' || typeof last !== 'number') {
-        return { value: 0, increasing: false };
-      }
-      
-      if (first === 0) {
-        return { 
-          value: last > 0 ? 100 : 0, 
-          increasing: last > 0 
-        };
-      }
-      
-      const percentChange = ((last - first) / first) * 100;
+  // Robust trend calculation with more error handling
+  const calculateTrend = (series) => {
+    // Ensure series is an array and has at least two elements
+    if (!Array.isArray(series) || series.length < 2) {
+      return { value: 0, increasing: false };
+    }
+
+    const first = series[0];
+    const last = series[series.length - 1];
+
+    // Handle potential non-numeric values
+    if (typeof first !== 'number' || typeof last !== 'number') {
+      return { value: 0, increasing: false };
+    }
+
+    if (first === 0) {
       return {
-        value: Math.abs(percentChange.toFixed(1)),
-        increasing: percentChange > 0
+        value: last > 0 ? 100 : 0,
+        increasing: last > 0
       };
+    }
+
+    const percentChange = ((last - first) / first) * 100;
+    return {
+      value: Math.abs(percentChange.toFixed(1)),
+      increasing: percentChange > 0
     };
-  
+  };
+
   // Robust total calculation
   const calculateTotal = (series) => {
     if (!Array.isArray(series)) return 0;
-    
+
     return series.reduce((sum, val) => {
       // Ensure we're only adding numeric values
       return sum + (typeof val === 'number' ? val : 0);
@@ -300,7 +301,7 @@ const TimeSeriesAnalysis = () => {
             Analyze crime trends over time to identify patterns, seasonal fluctuations, and long-term changes.
             This visualization helps in understanding how crime rates change temporally.
           </p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
@@ -328,7 +329,7 @@ const TimeSeriesAnalysis = () => {
                 />
               </div>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Aggregation</label>
               <select
@@ -341,7 +342,7 @@ const TimeSeriesAnalysis = () => {
                 ))}
               </select>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <select
@@ -355,7 +356,7 @@ const TimeSeriesAnalysis = () => {
               </select>
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Crime Types</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-1">
@@ -375,7 +376,7 @@ const TimeSeriesAnalysis = () => {
               ))}
             </div>
           </div>
-          
+
           <div className="mt-6">
             <button
               onClick={handleApplyFilters}
@@ -390,7 +391,7 @@ const TimeSeriesAnalysis = () => {
               ) : 'Apply Filters'}
             </button>
           </div>
-          
+
           {error && (
             <div className="mt-4 bg-red-50 border-l-4 border-red-400 p-4">
               <div className="flex">
@@ -407,11 +408,11 @@ const TimeSeriesAnalysis = () => {
           )}
         </div>
       </Card>
-      
+
       <Card>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Crime Trends Over Time</h3>
-          
+
           {loading ? (
             <div className="flex justify-center py-12">
               <Loader size="lg" />
@@ -431,73 +432,73 @@ const TimeSeriesAnalysis = () => {
           )}
         </div>
       </Card>
-      
-      {timeSeriesData && 
-       timeSeriesData.series && 
-       Object.keys(timeSeriesData.series).length > 0 && (
-        <Card>
-          <div className="p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">Time Series Analysis Summary</h3>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {Object.entries(timeSeriesData.series).map(([crimeType, data]) => {
 
-                // Additional null check
-                if (!data) return null;
-                
-                const trend = calculateTrend(data);
-                const total = calculateTotal(data);
-                
-                return (
-                  <div key={crimeType} className="bg-gray-50 p-4 rounded-md">
-                    <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">{crimeType}</h4>
-                    <p className="text-2xl font-bold text-gray-900">{total}</p>
-                    <div className="mt-1 flex items-center">
-                      {trend.increasing ? (
-                        <svg className="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
-                        </svg>
-                      ) : (
-                        <svg className="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M12 13a1 1 0 100 2h5a1 1 0 001-1V9a1 1 0 10-2 0v2.586l-4.293-4.293a1 1 0 00-1.414 0L8 9.586 3.707 5.293a1 1 0 00-1.414 1.414l5 5a1 1 0 001.414 0L11 9.414 14.586 13H12z" clipRule="evenodd" />
-                        </svg>
-                      )}
-                      <span className={`ml-1 text-sm ${trend.increasing ? 'text-red-600' : 'text-green-600'}`}>
-                        {trend.value}% {trend.increasing ? 'increase' : 'decrease'}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            <div className="bg-gray-50 p-4 rounded-md">
-              <h4 className="text-sm font-medium text-gray-900 mb-2">Analysis Insights</h4>
-              <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
-                <li>The time series analysis covers data from {dateRange.startDate.toLocaleDateString()} to {dateRange.endDate.toLocaleDateString()}.</li>
-                <li>Data is aggregated {aggregationPeriod === 'daily' ? 'daily' : 
-                  aggregationPeriod === 'weekly' ? 'weekly' : 
-                  aggregationPeriod === 'monthly' ? 'monthly' : 
-                  aggregationPeriod === 'quarterly' ? 'quarterly' : 'yearly'}.</li>
-                <li>Analysis shows trends in {selectedCrimeTypes.length > 0 ? selectedCrimeTypes.join(', ') : 'all crime types'}.</li>
-                <li>Location filter: {locations.find(l => l.value === selectedLocation)?.label || 'All Locations'}</li>
+      {timeSeriesData &&
+        timeSeriesData.series &&
+        Object.keys(timeSeriesData.series).length > 0 && (
+          <Card>
+            <div className="p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Time Series Analysis Summary</h3>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 {Object.entries(timeSeriesData.series).map(([crimeType, data]) => {
+
+                  // Additional null check
+                  if (!data) return null;
+
                   const trend = calculateTrend(data);
+                  const total = calculateTotal(data);
+
                   return (
-                    <li key={`insight-${crimeType}`}>
-                      {crimeType} shows a {trend.value}% {trend.increasing ? 'increase' : 'decrease'} from the beginning to the end of the period.
-                    </li>
+                    <div key={crimeType} className="bg-gray-50 p-4 rounded-md">
+                      <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">{crimeType}</h4>
+                      <p className="text-2xl font-bold text-gray-900">{total}</p>
+                      <div className="mt-1 flex items-center">
+                        {trend.increasing ? (
+                          <svg className="h-4 w-4 text-red-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+                          </svg>
+                        ) : (
+                          <svg className="h-4 w-4 text-green-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M12 13a1 1 0 100 2h5a1 1 0 001-1V9a1 1 0 10-2 0v2.586l-4.293-4.293a1 1 0 00-1.414 0L8 9.586 3.707 5.293a1 1 0 00-1.414 1.414l5 5a1 1 0 001.414 0L11 9.414 14.586 13H12z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                        <span className={`ml-1 text-sm ${trend.increasing ? 'text-red-600' : 'text-green-600'}`}>
+                          {trend.value}% {trend.increasing ? 'increase' : 'decrease'}
+                        </span>
+                      </div>
+                    </div>
                   );
                 })}
-              </ul>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-md">
+                <h4 className="text-sm font-medium text-gray-900 mb-2">Analysis Insights</h4>
+                <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
+                  <li>The time series analysis covers data from {dateRange.startDate.toLocaleDateString()} to {dateRange.endDate.toLocaleDateString()}.</li>
+                  <li>Data is aggregated {aggregationPeriod === 'daily' ? 'daily' :
+                    aggregationPeriod === 'weekly' ? 'weekly' :
+                      aggregationPeriod === 'monthly' ? 'monthly' :
+                        aggregationPeriod === 'quarterly' ? 'quarterly' : 'yearly'}.</li>
+                  <li>Analysis shows trends in {selectedCrimeTypes.length > 0 ? selectedCrimeTypes.join(', ') : 'all crime types'}.</li>
+                  <li>Location filter: {locations.find(l => l.value === selectedLocation)?.label || 'All Locations'}</li>
+                  {Object.entries(timeSeriesData.series).map(([crimeType, data]) => {
+                    const trend = calculateTrend(data);
+                    return (
+                      <li key={`insight-${crimeType}`}>
+                        {crimeType} shows a {trend.value}% {trend.increasing ? 'increase' : 'decrease'} from the beginning to the end of the period.
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+
+              <div className="mt-4 text-sm text-gray-600">
+                <p><strong>Note:</strong> The percentage change is calculated by comparing the first and last periods in the selected date range.</p>
+              </div>
             </div>
-            
-            <div className="mt-4 text-sm text-gray-600">
-              <p><strong>Note:</strong> The percentage change is calculated by comparing the first and last periods in the selected date range.</p>
-            </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )}
     </div>
   );
 };

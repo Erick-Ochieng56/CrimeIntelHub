@@ -1,21 +1,21 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { Link } from 'react-router-dom';
-import axios from '../../services/api'; // Import your configured API
+import api from '../../services/api'; // Import your configured API
 import { AuthContext } from '../../context/AuthContext'; // Import the auth context
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
   BarElement,
-  Title, 
-  Tooltip, 
-  Legend, 
-  ArcElement 
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
 } from 'chart.js';
 import { Pie, Line } from 'react-chartjs-2';
 
@@ -69,14 +69,14 @@ const AgencyDashboardPage = () => {
 
         // Try to fetch data, but handle potential errors for each request
         try {
-          const statsResponse = await axios.get(`/agencies/agencies/${agencyId}/stats/`);
+          const statsResponse = await api.get(`/agencies/agencies/${agencyId}/stats/`);
           setStatsData(statsResponse.data);
         } catch (statsError) {
           console.error('Failed to fetch agency stats:', statsError);
         }
 
         try {
-          const crimeResponse = await axios.get(`/crimes/?agency_id=${agencyId}`);
+          const crimeResponse = await api.get(`/crimes/?agency_id=${agencyId}`);
           const crimes = crimeResponse.data.results || [];
           setCrimeData(crimes);
 
@@ -89,8 +89,8 @@ const AgencyDashboardPage = () => {
         }
 
         try {
-          const chartResponse = await axios.get(`/crimes/stats/?agency_id=${agencyId}`);
-          
+          const chartResponse = await api.get(`/crimes/stats/?agency_id=${agencyId}`);
+
           // Set Pie chart data (Crime by Type)
           if (chartResponse.data.crime_types && chartResponse.data.crime_types.length > 0) {
             setCrimeTypeData({
@@ -125,7 +125,7 @@ const AgencyDashboardPage = () => {
         }
 
         try {
-          const trendsResponse = await axios.get(`/crimes/trends/?agency_id=${agencyId}`);
+          const trendsResponse = await api.get(`/crimes/trends/?agency_id=${agencyId}`);
           setMonthlyCrimeData(trendsResponse.data);
         } catch (trendsError) {
           console.error('Failed to fetch crime trends:', trendsError);
@@ -164,7 +164,7 @@ const AgencyDashboardPage = () => {
       setUploadStatus('uploading');
       const agencyId = getAgencyId();
 
-      await axios.post(
+      await api.post(
         `/agencies/agencies/${agencyId}/upload_data/`,
         formData,
         {
@@ -178,14 +178,14 @@ const AgencyDashboardPage = () => {
 
       // Refresh stats and charts after successful upload
       try {
-        const statsResponse = await axios.get(`/agencies/agencies/${agencyId}/stats/`);
+        const statsResponse = await api.get(`/agencies/agencies/${agencyId}/stats/`);
         setStatsData(statsResponse.data);
       } catch (statsError) {
         console.error('Failed to refresh agency stats:', statsError);
       }
 
       try {
-        const chartResponse = await axios.get(`/crimes/stats/?agency_id=${agencyId}`);
+        const chartResponse = await api.get(`/crimes/stats/?agency_id=${agencyId}`);
         setCrimeTypeData({
           labels: chartResponse.data.crime_types.map(item => item.name),
           datasets: [
@@ -217,7 +217,7 @@ const AgencyDashboardPage = () => {
       }
 
       try {
-        const trendsResponse = await axios.get(`/crimes/trends/?agency_id=${agencyId}`);
+        const trendsResponse = await api.get(`/crimes/trends/?agency_id=${agencyId}`);
         setMonthlyCrimeData(trendsResponse.data);
       } catch (trendsError) {
         console.error('Failed to refresh crime trends:', trendsError);
@@ -248,13 +248,12 @@ const AgencyDashboardPage = () => {
             </p>
           </div>
           <div className="mt-4 md:mt-0">
-            <span className={`px-3 py-1 rounded-full text-sm ${
-              statsData?.status === 'approved' 
-                ? 'bg-green-100 text-green-800' 
-                : statsData?.status === 'pending' 
+            <span className={`px-3 py-1 rounded-full text-sm ${statsData?.status === 'approved'
+                ? 'bg-green-100 text-green-800'
+                : statsData?.status === 'pending'
                   ? 'bg-yellow-100 text-yellow-800'
                   : 'bg-red-100 text-red-800'
-            }`}>
+              }`}>
               Status: {statsData?.status || 'Unknown'}
             </span>
           </div>
@@ -359,9 +358,9 @@ const AgencyDashboardPage = () => {
         <div className="mb-8">
           <h2 className="text-xl font-semibold mb-4">Crime Map</h2>
           <div className="h-96 bg-gray-100 rounded-lg overflow-hidden">
-            <MapContainer 
-              center={mapCenter} 
-              zoom={13} 
+            <MapContainer
+              center={mapCenter}
+              zoom={13}
               style={{ height: '100%', width: '100%' }}
             >
               <TileLayer
@@ -369,8 +368,8 @@ const AgencyDashboardPage = () => {
                 attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               />
               {crimeData.map((crime, index) => (
-                <Marker 
-                  key={crime.id || index} 
+                <Marker
+                  key={crime.id || index}
                   position={[crime.latitude || mapCenter[0], crime.longitude || mapCenter[1]]}
                 >
                   <Popup>
@@ -391,22 +390,22 @@ const AgencyDashboardPage = () => {
         <div>
           <h2 className="text-xl font-semibold mb-4">Quick Links</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Link 
-              to="/agency/data" 
+            <Link
+              to="/agency/data"
               className="block p-4 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-700"
             >
               <div className="font-medium">View All Data</div>
               <p className="text-sm text-gray-600">Access and manage your uploaded crime data</p>
             </Link>
-            <Link 
-              to="/agency/analytics" 
+            <Link
+              to="/agency/analytics"
               className="block p-4 bg-green-50 hover:bg-green-100 rounded-lg text-green-700"
             >
               <div className="font-medium">Advanced Analytics</div>
               <p className="text-sm text-gray-600">Explore detailed crime trends and patterns</p>
             </Link>
-            <Link 
-              to="/profile" 
+            <Link
+              to="/profile"
               className="block p-4 bg-purple-50 hover:bg-purple-100 rounded-lg text-purple-700"
             >
               <div className="font-medium">Agency Profile</div>

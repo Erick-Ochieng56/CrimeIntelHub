@@ -219,6 +219,17 @@ class PublicCrimeSerializer(serializers.ModelSerializer):
         fields = ('id', 'category', 'date', 'block_address', 'is_violent')
 
 
+class CrimeLightSerializer(serializers.ModelSerializer):
+    """Lightweight serializer for crime data, mainly for map visualization."""
+    category = serializers.CharField(source='category.name', read_only=True)
+    latitude = serializers.FloatField(source='location.y', read_only=True)
+    longitude = serializers.FloatField(source='location.x', read_only=True)
+
+    class Meta:
+        model = Crime
+        fields = ('id', 'category', 'date', 'latitude', 'longitude', 'is_violent')
+
+
 class CrimeUpdateSerializer(serializers.ModelSerializer):
     """Serializer for updating crime records."""
     
@@ -234,7 +245,7 @@ class CrimeUpdateSerializer(serializers.ModelSerializer):
         
 class CrimeFilterSerializer(serializers.Serializer):
     """Serializer for filtering crime records."""
-    
+
     start_date = serializers.DateField(required=False)
     end_date = serializers.DateField(required=False)
     crime_types = serializers.ListField(
@@ -243,9 +254,22 @@ class CrimeFilterSerializer(serializers.Serializer):
     )
     is_violent = serializers.BooleanField(required=False)
     status = serializers.CharField(required=False)
-    
+
     class Meta:
         fields = (
-            'start_date', 'end_date', 'crime_types', 
+            'start_date', 'end_date', 'crime_types',
             'is_violent', 'status'
         )
+
+
+class NeighborhoodCrimeSummarySerializer(serializers.Serializer):
+    """Serializer for neighborhood crime summary data."""
+
+    neighborhood_id = serializers.IntegerField()
+    neighborhood_name = serializers.CharField()
+    crime_count = serializers.IntegerField()
+    violent_crime_count = serializers.IntegerField()
+    property_crime_count = serializers.IntegerField()
+    most_common_crime_type = serializers.CharField()
+    latitude = serializers.FloatField()
+    longitude = serializers.FloatField()

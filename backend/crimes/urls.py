@@ -18,4 +18,7 @@ urlpatterns = [
     path('public/', views.public_crimes, name='public-crimes'),
     path('stats/', views.CrimeViewSet.as_view({'get': 'stats'}), name='crime-stats'),
     path('trends/', views.CrimeViewSet.as_view({'get': 'trends'}), name='crime-trends'),
+    path('heatmap/', views.CrimeViewSet.as_view({'get': 'heatmap'}), name='crime-heatmap'),
+    path('search/', views.CrimeViewSet.as_view({'post': 'search'}), name='crime-search'),
+    path('download_summary/', views.CrimeViewSet.as_view({'get': 'download_summary'}), name='crime-download-summary'),
 ]

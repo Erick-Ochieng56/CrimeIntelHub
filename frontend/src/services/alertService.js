@@ -10,25 +10,25 @@ export const getAlerts = async () => {
   try {
     console.log('Attempting to fetch alerts');
     const response = await api.get('/alerts/alerts/');
-    
+
     console.log('Full response:', response);
     console.log('Response data:', response.data);
     console.log('Response data type:', typeof response.data);
-    
+
     // If the alerts are at a different endpoint, fetch them directly
     if (response.data.alerts && typeof response.data.alerts === 'string') {
       const alertsResponse = await api.get(response.data.alerts);
       return alertsResponse.data;
     }
-    
+
     // Fallback to handling different response structures
     const data = response.data;
-    
+
     if (!data) {
       console.error('No data received from API');
       return [];
     }
-    
+
     return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Detailed error in getAlerts:', error);
@@ -148,5 +148,38 @@ export const markNotificationAsRead = async (notificationId) => {
     return response.data;
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to mark notification as read');
+  }
+};
+
+/**
+ * Get all active public safety alerts
+ * 
+ * @returns {Promise<Array>} Array of public safety alert objects
+ */
+export const getPublicSafetyAlerts = async () => {
+  try {
+    const response = await api.get('/alerts/public-alerts/');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.formattedMessage || 'Failed to fetch public safety alerts');
+  }
+};
+
+/**
+ * Get public safety alerts for a specific location
+ * 
+ * @param {number} lat - Latitude
+ * @param {number} lng - Longitude
+ * @param {number} radius - Radius in km
+ * @returns {Promise<Array>} Array of public safety alert objects
+ */
+export const getAlertsByLocation = async (lat, lng, radius = 5) => {
+  try {
+    const response = await api.get('/alerts/public-alerts/by_location/', {
+      params: { lat, lng, radius }
+    });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.formattedMessage || 'Failed to fetch alerts by location');
   }
 };

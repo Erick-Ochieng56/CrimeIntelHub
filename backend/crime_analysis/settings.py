@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'crime_alerts',
     'crime_reports',
     'crime_etl',
+    'maps',
 ]
 
 MIDDLEWARE = [

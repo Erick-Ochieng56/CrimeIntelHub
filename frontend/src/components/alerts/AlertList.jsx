@@ -5,6 +5,7 @@ import Card from '../common/Card';
 import Loader from '../common/Loader';
 import Modal from '../common/Modal';
 import { formatDistance, formatDate } from '../../utils/formatters';
+import PublicSafetyAlertList from './PublicSafetyAlertList';
 
 const AlertList = () => {
   const [alerts, setAlerts] = useState([]);
@@ -25,7 +26,7 @@ const AlertList = () => {
       setLoading(true);
       setError(null);
       const data = await getAlerts();
-      
+
       // Ensure data is an array before setting state
       if (Array.isArray(data)) {
         setAlerts(data);
@@ -44,14 +45,14 @@ const AlertList = () => {
     try {
       setLoading(true);
       await toggleAlertStatus(alert.id, !alert.isActive);
-      
+
       // Update alerts list
-      setAlerts(alerts.map(a => 
+      setAlerts(alerts.map(a =>
         a.id === alert.id ? { ...a, isActive: !a.isActive } : a
       ));
-      
+
       setActionSuccess(`Alert "${alert.name}" ${!alert.isActive ? 'activated' : 'deactivated'} successfully`);
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => {
         setActionSuccess(null);
@@ -72,12 +73,12 @@ const AlertList = () => {
     try {
       setLoading(true);
       await deleteAlert(deleteConfirmation.alertId);
-      
+
       // Remove deleted alert from state
       setAlerts(alerts.filter(alert => alert.id !== deleteConfirmation.alertId));
-      
+
       setActionSuccess('Alert deleted successfully');
-      
+
       // Clear success message after 3 seconds
       setTimeout(() => {
         setActionSuccess(null);
@@ -126,23 +127,27 @@ const AlertList = () => {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Your Crime Alerts</h2>
-          <p className="mt-1 text-sm text-gray-500">
-            Receive notifications when crimes matching your criteria occur in your selected areas.
-          </p>
+    <div className="space-y-10">
+      <PublicSafetyAlertList />
+
+      <div className="border-t border-gray-200 pt-10">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Your Crime Alerts</h2>
+            <p className="mt-1 text-sm text-gray-500">
+              Receive notifications when crimes matching your criteria occur in your selected areas.
+            </p>
+          </div>
+
+          <Link to="/alerts/new" className="btn btn-primary">
+            <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Create New Alert
+          </Link>
         </div>
-        
-        <Link to="/alerts/new" className="btn btn-primary">
-          <svg className="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Create New Alert
-        </Link>
       </div>
-      
+
       {error && (
         <div className="bg-red-50 border-l-4 border-red-400 p-4">
           <div className="flex">
@@ -157,7 +162,7 @@ const AlertList = () => {
           </div>
         </div>
       )}
-      
+
       {actionSuccess && (
         <div className="bg-green-50 border-l-4 border-green-400 p-4">
           <div className="flex">
@@ -172,7 +177,7 @@ const AlertList = () => {
           </div>
         </div>
       )}
-      
+
       <Card>
         <div className="p-6">
           <div className="flex flex-col sm:flex-row justify-between mb-6">
@@ -192,7 +197,7 @@ const AlertList = () => {
                   <option value="inactive">Inactive Alerts</option>
                 </select>
               </div>
-              
+
               <div>
                 <label htmlFor="sort-by" className="block text-sm font-medium text-gray-700 mb-1">
                   Sort by
@@ -208,7 +213,7 @@ const AlertList = () => {
                   <option value="type">Crime Type</option>
                 </select>
               </div>
-              
+
               <div className="flex items-end">
                 <button
                   onClick={toggleSortOrder}
@@ -226,12 +231,12 @@ const AlertList = () => {
                 </button>
               </div>
             </div>
-            
+
             <div className="text-sm text-gray-500">
               {filteredAlerts.length} {filteredAlerts.length === 1 ? 'alert' : 'alerts'} found
             </div>
           </div>
-          
+
           {loading && !alerts.length ? (
             <div className="flex justify-center py-12">
               <Loader size="lg" />
@@ -304,9 +309,8 @@ const AlertList = () => {
                         {formatDistance(alert.radius)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          alert.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                        }`}>
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${alert.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
                           {alert.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </td>
@@ -315,17 +319,16 @@ const AlertList = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
-                          <Link 
-                            to={`/alerts/${alert.id}/edit`} 
+                          <Link
+                            to={`/alerts/${alert.id}/edit`}
                             className="text-blue-600 hover:text-blue-900"
                           >
                             Edit
                           </Link>
                           <button
                             onClick={() => handleToggleStatus(alert)}
-                            className={`${
-                              alert.isActive ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'
-                            }`}
+                            className={`${alert.isActive ? 'text-yellow-600 hover:text-yellow-900' : 'text-green-600 hover:text-green-900'
+                              }`}
                             disabled={loading}
                           >
                             {alert.isActive ? 'Deactivate' : 'Activate'}
@@ -352,8 +355,8 @@ const AlertList = () => {
               <h3 className="mt-2 text-sm font-medium text-gray-900">No alerts found</h3>
               {filter !== 'all' ? (
                 <p className="mt-1 text-sm text-gray-500">
-                  Try changing your filter settings or 
-                  <button 
+                  Try changing your filter settings or
+                  <button
                     className="ml-1 text-blue-600 hover:text-blue-500"
                     onClick={() => setFilter('all')}
                   >
@@ -374,7 +377,7 @@ const AlertList = () => {
           )}
         </div>
       </Card>
-      
+
       {/* Delete Confirmation Modal */}
       <Modal
         isOpen={deleteConfirmation.show}
@@ -385,7 +388,7 @@ const AlertList = () => {
           <p className="text-sm text-gray-500">
             Are you sure you want to delete this alert? This action cannot be undone.
           </p>
-          
+
           <div className="mt-6 flex justify-end space-x-3">
             <button
               type="button"

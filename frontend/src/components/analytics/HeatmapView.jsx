@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { MapContainer, TileLayer, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
 import L from 'leaflet';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
-import { getCrimes } from '../../services/crimeService';
+import { useCrimeHeatmap } from '../../hooks/useCrimeQueries';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
 
@@ -13,10 +14,10 @@ import 'react-datepicker/dist/react-datepicker.css';
 const HeatmapLayer = ({ points, intensity = 8, radius = 25, blur = 15 }) => {
   const map = useMap();
   const heatLayerRef = useRef(null);
-  
+
   useEffect(() => {
     if (!map) return;
-    
+
     // Initialize the heat layer if not already created
     if (!heatLayerRef.current) {
       heatLayerRef.current = L.heatLayer([], {
@@ -33,12 +34,12 @@ const HeatmapLayer = ({ points, intensity = 8, radius = 25, blur = 15 }) => {
         }
       }).addTo(map);
     }
-    
+
     // Update the heat layer with new points
     if (points && points.length > 0) {
       heatLayerRef.current.setLatLngs(points);
     }
-    
+
     // Cleanup function
     return () => {
       if (heatLayerRef.current) {
@@ -46,15 +47,12 @@ const HeatmapLayer = ({ points, intensity = 8, radius = 25, blur = 15 }) => {
       }
     };
   }, [map, points, radius, blur, intensity]);
-  
+
   return null;
 };
 
 const HeatmapView = () => {
-  const [heatmapData, setHeatmapData] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [mapCenter, setMapCenter] = useState([-4.0435, 39.6682]); // Default to NYC
+  const [mapCenter, setMapCenter] = useState([-4.0435, 39.6682]); // Default to Mombasa
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
     endDate: new Date(),
@@ -62,7 +60,7 @@ const HeatmapView = () => {
   const [selectedCrimeTypes, setSelectedCrimeTypes] = useState([]);
   const [intensity, setIntensity] = useState(8);
   const [radius, setRadius] = useState(25);
-  
+
   const crimeTypes = [
     { value: 'THEFT', label: 'Theft' },
     { value: 'ASSAULT', label: 'Assault' },
@@ -73,7 +71,7 @@ const HeatmapView = () => {
     { value: 'FRAUD', label: 'Fraud' },
     { value: 'OTHER', label: 'Other' },
   ];
-  
+
   const timePeriodsOptions = [
     { value: 'last_7_days', label: 'Last 7 Days' },
     { value: 'last_30_days', label: 'Last 30 Days' },
@@ -81,14 +79,50 @@ const HeatmapView = () => {
     { value: 'last_year', label: 'Last Year' },
     { value: 'custom', label: 'Custom Range' },
   ];
-  
+
   const [selectedTimePeriod, setSelectedTimePeriod] = useState('last_30_days');
-  
+
+  const queryClient = useQueryClient();
+
+  // Calculate days from date range for heatmap API
+  const calculateDays = () => {
+    if (selectedTimePeriod === 'custom') {
+      const diffTime = Math.abs(dateRange.endDate - dateRange.startDate);
+      return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    switch (selectedTimePeriod) {
+      case 'last_7_days': return 7;
+      case 'last_30_days': return 30;
+      case 'last_90_days': return 90;
+      case 'last_year': return 365;
+      default: return 30;
+    }
+  };
+
+  // React Query hook for heatmap data
+  const heatmapQuery = useCrimeHeatmap({
+    days: calculateDays(),
+    crimeTypes: selectedCrimeTypes.length > 0 ? selectedCrimeTypes : undefined,
+  }, {
+    refetchOnWindowFocus: false,
+  });
+
+  // Convert API data format to leaflet.heat format [lat, lng, intensity]
+  const heatmapData = heatmapQuery.data ? heatmapQuery.data.map(point => [
+    point.lat,
+    point.lng,
+    point.intensity
+  ]) : [];
+
+  const loading = heatmapQuery.isLoading;
+  const error = heatmapQuery.error;
+
   // Update dateRange when time period changes
   useEffect(() => {
     const endDate = new Date();
     let startDate;
-    
+
     switch (selectedTimePeriod) {
       case 'last_7_days':
         startDate = new Date(endDate);
@@ -113,10 +147,10 @@ const HeatmapView = () => {
         startDate = new Date(endDate);
         startDate.setDate(endDate.getDate() - 30);
     }
-    
+
     setDateRange({ startDate, endDate });
   }, [selectedTimePeriod]);
-  
+
   const handleCrimeTypeToggle = (type) => {
     if (selectedCrimeTypes.includes(type)) {
       setSelectedCrimeTypes(selectedCrimeTypes.filter(t => t !== type));
@@ -124,49 +158,22 @@ const HeatmapView = () => {
       setSelectedCrimeTypes([...selectedCrimeTypes, type]);
     }
   };
-  
-  const fetchHeatmapData = async () => {
-    try {
-      setLoading(true);
-      setError(null);
 
-      const params = {
-        startDate: dateRange.startDate.toISOString().split('T')[0],
-        endDate: dateRange.endDate.toISOString().split('T')[0],
-        lat: mapCenter[0],
-        lng: mapCenter[1],
-        radius: 10, // Example radius in km
-        crimeTypes: selectedCrimeTypes,
-      };
-
-      const crimes = await getCrimes(params);
-      setHeatmapData(crimes.map(crime => [crime.latitude, crime.longitude, 1]));
-    } catch (err) {
-      console.error('Error fetching heatmap data:', err);
-      setError('Failed to load heatmap data. Please try again later.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchHeatmapData();
-  }, [dateRange, selectedCrimeTypes, mapCenter]);
-  
   const handleApplyFilters = () => {
-    fetchHeatmapData();
+    // Invalidate the heatmap query to force a refetch
+    queryClient.invalidateQueries({ queryKey: ['crime-heatmap'] });
   };
-  
+
   return (
     <div className="space-y-6">
       <Card>
         <div className="p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Crime Heatmap Analysis</h2>
           <p className="text-gray-600 mb-6">
-            Visualize crime density across areas using our heatmap. 
+            Visualize crime density across areas using our heatmap.
             Areas with higher concentrations of crime appear in red, while areas with lower concentrations appear in green.
           </p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
@@ -180,7 +187,7 @@ const HeatmapView = () => {
                 ))}
               </select>
             </div>
-            
+
             {selectedTimePeriod === 'custom' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Custom Date Range</label>
@@ -209,7 +216,7 @@ const HeatmapView = () => {
                 </div>
               </div>
             )}
-            
+
             <div className="flex items-end">
               <button
                 onClick={handleApplyFilters}
@@ -225,7 +232,7 @@ const HeatmapView = () => {
               </button>
             </div>
           </div>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -240,7 +247,7 @@ const HeatmapView = () => {
                 className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
               />
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Heatmap Radius: {radius}
@@ -255,7 +262,7 @@ const HeatmapView = () => {
               />
             </div>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Crime Types</label>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-1">
@@ -277,7 +284,7 @@ const HeatmapView = () => {
           </div>
         </div>
       </Card>
-      
+
       <Card>
         <div className="relative h-[600px] w-full">
           {loading && (
@@ -285,31 +292,31 @@ const HeatmapView = () => {
               <Loader size="lg" />
             </div>
           )}
-          
-          <MapContainer 
-            center={mapCenter} 
-            zoom={13} 
+
+          <MapContainer
+            center={mapCenter}
+            zoom={13}
             style={{ height: '100%', width: '100%' }}
           >
             <TileLayer
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
-            
-            <HeatmapLayer 
-              points={heatmapData} 
-              intensity={intensity} 
-              radius={radius} 
-              blur={15} 
+
+            <HeatmapLayer
+              points={heatmapData}
+              intensity={intensity}
+              radius={radius}
+              blur={15}
             />
           </MapContainer>
         </div>
       </Card>
-      
+
       <Card>
         <div className="p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-4">Heatmap Analysis Insights</h3>
-          
+
           {loading ? (
             <div className="flex justify-center py-4">
               <Loader size="md" />
@@ -325,36 +332,36 @@ const HeatmapView = () => {
                   </div>
                   <div className="ml-3">
                     <p className="text-sm text-blue-700">
-                      This heatmap represents {heatmapData.length} crime incidents 
+                      This heatmap represents {heatmapData.length} crime incidents
                       from {dateRange.startDate.toLocaleDateString()} to {dateRange.endDate.toLocaleDateString()}.
                       {selectedCrimeTypes.length > 0 && ` Filtered for crime types: ${selectedCrimeTypes.join(', ')}.`}
                     </p>
                   </div>
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className="bg-gray-50 p-4 rounded-md">
                   <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Total Incidents</h4>
                   <p className="text-2xl font-bold text-gray-900">{heatmapData.length}</p>
                 </div>
-                
+
                 <div className="bg-gray-50 p-4 rounded-md">
                   <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Date Range</h4>
                   <p className="text-sm font-medium text-gray-900">
                     {dateRange.startDate.toLocaleDateString()} - {dateRange.endDate.toLocaleDateString()}
                   </p>
                 </div>
-                
+
                 <div className="bg-gray-50 p-4 rounded-md">
                   <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Crime Types</h4>
                   <p className="text-sm font-medium text-gray-900">
-                    {selectedCrimeTypes.length > 0 
-                      ? selectedCrimeTypes.join(', ') 
+                    {selectedCrimeTypes.length > 0
+                      ? selectedCrimeTypes.join(', ')
                       : 'All Types'}
                   </p>
                 </div>
-                
+
                 <div className="bg-gray-50 p-4 rounded-md">
                   <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wider mb-2">Hotspot Risk Level</h4>
                   <div className="flex items-center space-x-1">
@@ -367,7 +374,7 @@ const HeatmapView = () => {
                   </div>
                 </div>
               </div>
-              
+
               <div className="mt-6">
                 <h4 className="text-md font-medium text-gray-900 mb-2">Key Observations</h4>
                 <ul className="list-disc pl-5 space-y-1 text-sm text-gray-600">
