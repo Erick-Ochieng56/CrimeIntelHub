@@ -38,6 +38,6 @@
     "eslint-plugin-react": "^7.37.4",
     "eslint-plugin-react-hooks": "^5.2.0",
     "postcss": "^8.5.3",
-    "vite": "^6.2.2"
+    "vite": "^6.4.2"
   }
 }
