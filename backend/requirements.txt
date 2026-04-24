@@ -22,7 +22,7 @@ dotenv==0.9.9
 drf-yasg==1.21.10
 et_xmlfile==2.0.0
 GDAL @ file:///C:/Users/Administrator/Downloads/gdal-3.10.2-cp312-cp312-win_amd64.whl#sha256=720e9e45d057231d990aa536c41dd2bd96a97e93a3edde10fff5321b3496388b
-geopandas==1.0.1
+geopandas==1.1.2
 gunicorn==23.0.0
 inflection==0.5.1
 joblib==1.5.0
