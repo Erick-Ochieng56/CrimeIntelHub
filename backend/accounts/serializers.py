@@ -206,7 +206,7 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         try:
             token = PasswordResetToken.objects.get(
                 token=attrs['token'],
-                user__email=attrs['email'],
+                user__email__iexact=attrs['email'],
                 used=False
             )
             if token.is_expired:

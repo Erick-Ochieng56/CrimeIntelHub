@@ -37,7 +37,10 @@ export const generateReport = async (reportParams) => {
 export const getReportHistory = async () => {
   try {
     const response = await api.get('/reports/reports/');
-    return response.data;
+    const data = response.data;
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data?.results)) return data.results;
+    return [];
   } catch (error) {
     throw new Error(error.formattedMessage || 'Failed to fetch report history');
   }

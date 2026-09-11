@@ -1,16 +1,18 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   getCrimes,
   getCrimeSummaries,
   getExportedCrimeSummary,
   getCurrentHotspots,
   getCrimeTrends,
-  getCrimeHeatmap
+  getCrimeHeatmap,
+  getMapViewport,
 } from '../services/crimeService';
+import { neighborTileParams, viewportTileKey } from '../utils/mapTiles';
 
-// Query keys
 export const crimeQueryKeys = {
   crimes: (params) => ['crimes', params],
+  viewport: (params) => ['map-viewport', viewportTileKey(params), params],
   summaries: ['crime-summaries'],
   exported: ['exported-summary'],
   hotspots: ['hotspots'],
@@ -18,71 +20,87 @@ export const crimeQueryKeys = {
   heatmap: (params) => ['crime-heatmap', params],
 };
 
-// Crimes query hook
 export const useCrimes = (params, options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.crimes(params),
     queryFn: () => getCrimes(params),
-    enabled: !!params, // Only run if params exist
-    staleTime: 1000 * 60 * 2, // 2 minutes
+    enabled: !!params,
+    staleTime: 1000 * 60 * 3,
+    refetchOnWindowFocus: false,
     ...options,
   });
 };
 
-// Crime summaries query hook
+/** Zoom-tiered viewport data (districts / clusters / points). */
+export const useMapViewport = (params, options = {}) => {
+  return useQuery({
+    queryKey: crimeQueryKeys.viewport(params),
+    queryFn: () => getMapViewport(params),
+    enabled: !!params?.northEastLat && !!params?.southWestLat,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 30,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
+    retry: (failureCount, error) => {
+      if (error?.response?.status === 429) return false;
+      return failureCount < 1;
+    },
+    ...options,
+  });
+};
+
 export const useCrimeSummaries = (options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.summaries,
     queryFn: getCrimeSummaries,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
+    refetchOnWindowFocus: false,
+    enabled: false,
     ...options,
   });
 };
 
-// Exported crime summary query hook
 export const useExportedCrimeSummary = (options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.exported,
     queryFn: getExportedCrimeSummary,
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false,
+    enabled: false,
     ...options,
   });
 };
 
-// Hotspots query hook
 export const useHotspots = (options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.hotspots,
     queryFn: getCurrentHotspots,
-    staleTime: 1000 * 60 * 15, // 15 minutes - hotspots don't change often
+    staleTime: 1000 * 60 * 15,
+    refetchOnWindowFocus: false,
     ...options,
   });
 };
 
-// Crime trends query hook
 export const useCrimeTrends = (params, options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.trends(params),
     queryFn: () => getCrimeTrends(params),
     enabled: !!params,
-    staleTime: 1000 * 60 * 10, // 10 minutes
+    staleTime: 1000 * 60 * 10,
     ...options,
   });
 };
 
-
-// Crime heatmap query hook
 export const useCrimeHeatmap = (params, options = {}) => {
   return useQuery({
     queryKey: crimeQueryKeys.heatmap(params),
     queryFn: () => getCrimeHeatmap(params),
     enabled: !!params,
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 1000 * 60 * 5,
     ...options,
   });
 };
 
-// Hook to prefetch crimes for a given bounds
 export const usePrefetchCrimes = () => {
   const queryClient = useQueryClient();
 
@@ -94,5 +112,17 @@ export const usePrefetchCrimes = () => {
     });
   };
 
-  return { prefetchCrimes };
+  const prefetchViewportNeighbors = (tileParams, extras = {}) => {
+    if (!tileParams) return;
+    neighborTileParams(tileParams).forEach((neighbor) => {
+      const params = { ...neighbor, ...extras };
+      queryClient.prefetchQuery({
+        queryKey: crimeQueryKeys.viewport(params),
+        queryFn: () => getMapViewport(params),
+        staleTime: 1000 * 60 * 5,
+      });
+    });
+  };
+
+  return { prefetchCrimes, prefetchViewportNeighbors };
 };

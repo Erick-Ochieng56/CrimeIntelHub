@@ -13,6 +13,7 @@ from django.db import connection
 from django.core.cache import cache
 import redis
 import time
+from crimes.views import CrimeViewSet
 
 # Swagger/OpenAPI documentation setup
 schema_view = get_schema_view(
@@ -219,6 +220,9 @@ urlpatterns = [
     path('api/auth/', include('accounts.urls', namespace='accounts')),
     path('api/agencies/', include('agencies.urls', namespace='agencies')),
     path('api/crimes/', include('crimes.urls', namespace='crimes')),
+    # Compat aliases for older frontend builds
+    path('api/stats/', CrimeViewSet.as_view({'get': 'stats'}), name='compat-crime-stats'),
+    path('api/trends/', CrimeViewSet.as_view({'get': 'trends'}), name='compat-crime-trends'),
     path('api/analytics/', include('crime_analytics.urls', namespace='crime_analytics')),
     path('api/alerts/', include('crime_alerts.urls', namespace='crime_alerts')),
     path('api/reports/', include('crime_reports.urls', namespace='crime_reports')),

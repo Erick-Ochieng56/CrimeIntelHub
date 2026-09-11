@@ -3,7 +3,6 @@ Views for accounts app.
 """
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model, authenticate, logout
-from django.utils import timezone
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import generics, permissions, status
@@ -20,6 +19,19 @@ from agencies.models import Agency
 
 User = get_user_model()
 
+AUTH_GROUP_NAMES = {
+    'admin': 'Administrators',
+    'agency': 'Agency Users',
+    'user': 'Regular Users',
+}
+
+
+def get_auth_group(name):
+    """Ensure auth groups exist even if create_auth_groups was never run."""
+    group, _ = Group.objects.get_or_create(name=name)
+    return group
+
+
 class RegisterView(generics.CreateAPIView):
     """API endpoint for user registration."""
     serializer_class = RegisterSerializer
@@ -30,8 +42,7 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save(user_type='user')
-        user_group = Group.objects.get(name='Regular Users')
-        user.groups.add(user_group)
+        user.groups.add(get_auth_group(AUTH_GROUP_NAMES['user']))
         refresh = RefreshToken.for_user(user)
         return Response({
             'refresh': str(refresh),
@@ -49,8 +60,7 @@ class AgencyRegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save(user_type='agency')
-        user_group = Group.objects.get(name='Agency Users')
-        user.groups.add(user_group)
+        user.groups.add(get_auth_group(AUTH_GROUP_NAMES['agency']))
         refresh = RefreshToken.for_user(user)
         agency_id = user.agency.id if user.agency else None
         return Response({
@@ -163,13 +173,21 @@ class PasswordResetRequestView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        """Send password reset email."""
+        """Send password reset email (always returns the same message)."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data['email']
         try:
-            user = User.objects.get(email=serializer.validated_data['email'])
-            token = PasswordResetToken.objects.create(user=user)
-            reset_url = f"{settings.FRONTEND_URL}/reset-password?token={token.token}&email={user.email}"
+            user = User.objects.get(email__iexact=email)
+            token = PasswordResetToken.create_for_user(
+                user=user,
+                ip_address=request.META.get('REMOTE_ADDR'),
+                user_agent=request.META.get('HTTP_USER_AGENT', ''),
+            )
+            reset_url = (
+                f"{settings.FRONTEND_URL}/reset-password"
+                f"?token={token.token}&email={user.email}"
+            )
             send_mail(
                 'Password Reset Request',
                 f'Click the following link to reset your password: {reset_url}',
@@ -177,9 +195,9 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 [user.email],
                 fail_silently=False,
             )
-            return Response({'detail': 'Password reset email sent.'})
         except User.DoesNotExist:
-            return Response({'detail': 'Password reset email sent.'})
+            pass
+        return Response({'detail': 'Password reset email sent.'})
 
 class PasswordResetConfirmView(generics.GenericAPIView):
     """API endpoint for confirming password reset."""
@@ -187,20 +205,22 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     permission_classes = [permissions.AllowAny]
 
     def post(self, request, *args, **kwargs):
-        """Reset user password."""
+        """Reset user password using a valid unused token."""
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         token = PasswordResetToken.objects.get(
             token=serializer.validated_data['token'],
-            user__email=serializer.validated_data['email'],
-            used=False
+            user__email__iexact=serializer.validated_data['email'],
+            used=False,
         )
+        if token.is_expired:
+            return Response({'token': 'Token has expired'}, status=status.HTTP_400_BAD_REQUEST)
+
         user = token.user
         user.set_password(serializer.validated_data['new_password'])
         user.save()
         token.used = True
-        token.used_at = timezone.now()
-        token.save()
+        token.save(update_fields=['used'])
         return Response({'detail': 'Password successfully reset.'})
 
 class UserProfileView(generics.RetrieveUpdateAPIView):
@@ -275,9 +295,9 @@ class AdminUserManagement(generics.ListCreateAPIView):
         agency_id = self.request.data.get('agency')
         user = serializer.save(user_type=user_type)
         if user_type == 'admin':
-            group = Group.objects.get(name='Administrators')
+            group = get_auth_group(AUTH_GROUP_NAMES['admin'])
         elif user_type == 'agency':
-            group = Group.objects.get(name='Agency Users')
+            group = get_auth_group(AUTH_GROUP_NAMES['agency'])
             if agency_id:
                 try:
                     agency = Agency.objects.get(id=agency_id)
@@ -286,7 +306,7 @@ class AdminUserManagement(generics.ListCreateAPIView):
                 except Agency.DoesNotExist:
                     pass
         else:
-            group = Group.objects.get(name='Regular Users')
+            group = get_auth_group(AUTH_GROUP_NAMES['user'])
         user.groups.add(group)
 
 class AdminUserDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -304,11 +324,11 @@ class AdminUserDetail(generics.RetrieveUpdateDestroyAPIView):
             user.user_type = user_type
             user.groups.clear()
             if user_type == 'admin':
-                group = Group.objects.get(name='Administrators')
+                group = get_auth_group(AUTH_GROUP_NAMES['admin'])
             elif user_type == 'agency':
-                group = Group.objects.get(name='Agency Users')
+                group = get_auth_group(AUTH_GROUP_NAMES['agency'])
             else:
-                group = Group.objects.get(name='Regular Users')
+                group = get_auth_group(AUTH_GROUP_NAMES['user'])
             user.groups.add(group)
         if user.user_type == 'agency' and agency_id:
             try:
@@ -348,7 +368,7 @@ class AgencyUserManagement(generics.ListCreateAPIView):
         if 'agency' in self.request.data and self.request.data['agency'] != str(self.request.user.agency.id):
             return Response({'error': 'Cannot assign users to another agency'}, status=status.HTTP_403_FORBIDDEN)
         user = serializer.save(user_type='agency', agency=self.request.user.agency)
-        user_group = Group.objects.get(name='Agency Users')
+        user_group = get_auth_group(AUTH_GROUP_NAMES['agency'])
         user.groups.add(user_group)
 
 class AgencyUserDetail(generics.RetrieveUpdateDestroyAPIView):

@@ -14,9 +14,9 @@ from .models import PredictionModel, HotspotZone, CrimePrediction, PatternAnalys
 from .serializers import PredictionModelSerializer, HotspotZoneSerializer, CrimePredictionSerializer, PatternAnalysisSerializer, DemographicCorrelationSerializer
 from crimes.models import Crime
 from crimes.serializers import CrimeListSerializer
-import joblib
-import os
+from crime_analytics.ml_service import CrimePredictor
 from django.conf import settings
+import os
 
 class PredictionModelViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for prediction models."""
@@ -76,65 +76,68 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
     
     @action(detail=False, methods=['get'])
     def predictions(self, request):
-        """Get predictive analysis for specified parameters."""
-        # Extract parameters from request
+        """Get predictive analysis for specified parameters.
+
+        Prefer stored CrimePrediction rows; if none exist and lat/lng are
+        provided, run the live unified CrimePredictor.
+        """
         date_str = request.query_params.get('date')
         crime_type = request.query_params.get('crime_type')
         lat = request.query_params.get('lat')
         lng = request.query_params.get('lng')
-        
-        # Validate parameters
+
         if not date_str:
             return Response(
                 {"error": "Date is a required parameter."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         try:
-            # Check if lat and lng were provided and are valid floats
+            location = None
             if lat is not None and lng is not None:
-                lat = float(lat)
-                lng = float(lng)
-                location = Point(lng, lat, srid=4326)
+                lat_f = float(lat)
+                lng_f = float(lng)
+                location = Point(lng_f, lat_f, srid=4326)
             else:
-                # Default to a central point if no location provided
-                location = None
-            
-            # Query predictions
-            predictions_qs = CrimePrediction.objects.filter(
-                prediction_date=date_str
-            )
-            
-            # Filter by crime type if specified
+                lat_f = lng_f = None
+
+            predictions_qs = CrimePrediction.objects.filter(prediction_date=date_str)
             if crime_type and crime_type != 'ALL':
-                predictions_qs = predictions_qs.filter(crime_type=crime_type)
-            
-            # Filter by proximity to provided location if location was provided
+                predictions_qs = predictions_qs.filter(crime_type__name__iexact=crime_type)
             if location:
-                # Adjust the distance as needed (currently set to ~5km)
                 predictions_qs = predictions_qs.filter(
                     location__distance_lte=(location, D(km=5))
                 )
-            
-            # Serialize the data
+
             serializer = self.get_serializer(predictions_qs, many=True)
-            
-            # If no results, return an empty array rather than an error
-            if not serializer.data:
-                return Response([])
-            
-            # Return the array directly
-            return Response(serializer.data)
-            
-        except ValueError:
-            return Response(
-                {"error": "Invalid latitude or longitude."},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            stored = serializer.data
+            # GeoFeature many=True returns FeatureCollection dict even when empty
+            has_stored = False
+            if isinstance(stored, dict):
+                has_stored = bool(stored.get('features'))
+            elif isinstance(stored, list):
+                has_stored = len(stored) > 0
+            if has_stored:
+                return Response(stored)
+
+            # Live inference fallback when no precomputed rows
+            if lat_f is not None and lng_f is not None:
+                predictor = CrimePredictor()
+                result = predictor.predict(
+                    lat=lat_f,
+                    lng=lng_f,
+                    date=date_str,
+                    crime_type=None if not crime_type or crime_type == 'ALL' else crime_type,
+                )
+                return Response(result)
+
+            return Response({'type': 'FeatureCollection', 'features': []})
+        except ValueError as e:
+            return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
             return Response(
-                {"error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": f"An error occurred: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
 class PatternAnalysisViewSet(viewsets.ModelViewSet):
@@ -180,65 +183,70 @@ class CrimeDataViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset
 
 @api_view(['POST'])
+@permission_classes([permissions.IsAuthenticatedOrReadOnly])
 def predict_crime(request):
-    """Handle crime prediction requests."""
+    """Live crime risk prediction using the unified ML model."""
     data = request.data
     date = data.get('date')
     lat = data.get('lat')
     lng = data.get('lng')
     crime_type = data.get('crime_type', 'ALL')
 
-    # Validate inputs
-    if not date or not lat or not lng:
-        return Response({"error": "Date, latitude, and longitude are required."}, status=400)
+    if not date or lat is None or lng is None:
+        return Response(
+            {"error": "Date, latitude, and longitude are required."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
 
     try:
         lat = float(lat)
         lng = float(lng)
         location = Point(lng, lat, srid=4326)
-    except ValueError:
-        return Response({"error": "Invalid latitude or longitude."}, status=400)
-
-    # Load the trained model
-    model_path = os.path.join(settings.BASE_DIR, 'backend', 'crime_prediction_model.pkl')
-    if not os.path.exists(model_path):
-        return Response({"error": "Prediction model not found."}, status=500)
-
-    try:
-        model = joblib.load(model_path)
-    except Exception as e:
-        return Response({"error": f"Failed to load prediction model: {str(e)}"}, status=500)
-
-    # Prepare input for the model
-    try:
-        # Example feature vector: [latitude, longitude]
-        features = [lat, lng]
-        probability = model.predict_proba([features])[0][1]  # Assuming binary classification
-    except Exception as e:
-        return Response({"error": f"Prediction failed: {str(e)}"}, status=500)
-
-    # Create prediction result
-    try:
-        prediction = CrimePredictionResult.objects.create(
-            prediction_date=date,
-            location=location,
-            crime_type=crime_type,
-            probability=probability,
-            contributing_factors={"latitude": lat, "longitude": lng}
+    except (TypeError, ValueError):
+        return Response(
+            {"error": "Invalid latitude or longitude."},
+            status=status.HTTP_400_BAD_REQUEST,
         )
 
-        return Response({
-            "prediction_date": prediction.prediction_date,
-            "location": {
-                "latitude": prediction.location.y,
-                "longitude": prediction.location.x
-            },
-            "crime_type": prediction.crime_type,
-            "probability": prediction.probability,
-            "contributing_factors": prediction.contributing_factors
-        })
+    try:
+        predictor = CrimePredictor()
+        result = predictor.predict(
+            lat=lat,
+            lng=lng,
+            date=str(date),
+            crime_type=None if crime_type in (None, '', 'ALL') else crime_type,
+        )
+    except ValueError as e:
+        return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
     except Exception as e:
-        return Response({"error": f"Failed to save prediction result: {str(e)}"}, status=500)
+        return Response(
+            {"error": f"Prediction failed: {str(e)}"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+
+    # Persist a compact result row for history/audit
+    try:
+        top_prob = 0.0
+        if result.get('features'):
+            top_prob = max(
+                (f['properties']['probability'] for f in result['features']),
+                default=0.0,
+            )
+        CrimePredictionResult.objects.create(
+            prediction_date=date,
+            location=location,
+            crime_type=crime_type or 'ALL',
+            probability=top_prob,
+            contributing_factors={
+                'model_version': result.get('model_version'),
+                'features': result.get('features', [])[:1],
+            },
+        )
+    except Exception:
+        # Prediction response still useful even if audit row fails
+        pass
+
+    return Response(result)
 
 
 @api_view(['POST'])

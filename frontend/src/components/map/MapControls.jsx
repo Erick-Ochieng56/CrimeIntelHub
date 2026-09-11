@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
-import LocationSearch from './LocationSearch';
 
 const CRIME_TYPES = [
   { value: 'HOMICIDE', label: 'Homicide', color: '#FF0000' },
@@ -21,9 +20,8 @@ const CRIME_TYPES = [
   { value: 'OTHER_PENAL', label: 'Other Penal Code Offenses', color: '#D8BFD8' },
 ];
 
-const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, showHotspots, onToggleHotspots }) => {
+const MapControls = ({ onFilterChange, filters, onRefresh, showHotspots, onToggleHotspots }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchRadius, setSearchRadius] = useState(filters.searchRadius || 500);
   const [dateRange, setDateRange] = useState({
     startDate: filters.dateRange?.start || null,
     endDate: filters.dateRange?.end || null,
@@ -35,14 +33,9 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
     setIsOpen(!isOpen);
   };
 
-  const handleRadiusChange = (e) => {
-    const newRadius = Number(e.target.value);
-    setSearchRadius(newRadius);
-  };
-
   const handleCrimeTypeToggle = (type) => {
     if (selectedCrimeTypes.includes(type)) {
-      setSelectedCrimeTypes(selectedCrimeTypes.filter(t => t !== type));
+      setSelectedCrimeTypes(selectedCrimeTypes.filter((t) => t !== type));
     } else {
       setSelectedCrimeTypes([...selectedCrimeTypes, type]);
     }
@@ -55,36 +48,38 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
         start: dateRange.startDate,
         end: dateRange.endDate,
       },
-      searchRadius,
     });
   };
 
   const handleResetFilters = () => {
-    setSearchRadius(500);
     setDateRange({ startDate: null, endDate: null });
     setSelectedCrimeTypes([]);
     onFilterChange({
       crimeTypes: [],
       dateRange: { start: null, end: null },
-      searchRadius: 500,
     });
   };
 
   return (
-    <div className="absolute top-4 left-4 z-[500]">
+    <div className="absolute top-20 left-4 z-[500] md:top-4">
       <div className="bg-white rounded-lg shadow-lg">
         <button
           onClick={handleToggleControls}
           className="w-10 h-10 rounded-full bg-blue-600 text-white shadow-md flex items-center justify-center hover:bg-blue-700 focus:outline-none"
-          aria-label="Toggle map controls"
+          aria-label="Toggle map filters"
         >
           {isOpen ? (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           ) : (
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"
+              />
             </svg>
           )}
         </button>
@@ -92,35 +87,10 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
         {isOpen && (
           <div ref={controlsRef} className="mt-2 p-4 bg-white rounded-lg shadow-lg w-72">
             <div className="space-y-4">
-              <h3 className="text-lg font-medium text-gray-900">Map Controls</h3>
+              <h3 className="text-lg font-medium text-gray-900">Filters</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Search Location
-                </label>
-                <LocationSearch onLocationSelect={onLocationChange} />
-              </div>
-
-              <div>
-                <label htmlFor="radius" className="block text-sm font-medium text-gray-700 mb-1">
-                  Search Radius: {searchRadius} m
-                </label>
-                <input
-                  id="radius"
-                  type="range"
-                  min="100"
-                  max="1000"
-                  step="10"
-                  value={searchRadius}
-                  onChange={handleRadiusChange}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Date Range
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
                 <div className="flex items-center space-x-2">
                   <DatePicker
                     selected={dateRange.startDate}
@@ -146,9 +116,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
               </div>
 
               <div>
-                <span className="block text-sm font-medium text-gray-700 mb-1">
-                  Crime Types
-                </span>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Crime Types</span>
                 <div className="space-y-2 max-h-40 overflow-y-auto">
                   {CRIME_TYPES.map((crime) => (
                     <div key={crime.value} className="flex items-center">
@@ -166,7 +134,7 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
                         <span
                           className="inline-block w-3 h-3 rounded-full mr-2"
                           style={{ backgroundColor: crime.color }}
-                        ></span>
+                        />
                         {crime.label}
                       </label>
                     </div>
@@ -174,28 +142,37 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
                 </div>
               </div>
 
-              <div className="border-t border-gray-100 pt-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-gray-700">Show Hotspots</span>
-                  <button
-                    onClick={onToggleHotspots}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${showHotspots ? 'bg-blue-600' : 'bg-gray-200'}`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${showHotspots ? 'translate-x-5' : 'translate-x-0'}`}
-                    />
-                  </button>
+              {typeof onToggleHotspots === 'function' && (
+                <div className="border-t border-gray-100 pt-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-gray-700">Show Hotspots</span>
+                    <button
+                      type="button"
+                      onClick={onToggleHotspots}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                        showHotspots ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                          showHotspots ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex space-x-2 pt-2">
                 <button
+                  type="button"
                   onClick={handleApplyFilters}
                   className="flex-1 bg-blue-600 text-white py-2 px-4 rounded hover:bg-blue-700 focus:outline-none"
                 >
                   Apply Filters
                 </button>
                 <button
+                  type="button"
                   onClick={handleResetFilters}
                   className="bg-gray-200 text-gray-700 py-2 px-4 rounded hover:bg-gray-300 focus:outline-none"
                 >
@@ -205,11 +182,17 @@ const MapControls = ({ onFilterChange, onLocationChange, filters, onRefresh, sho
 
               <div>
                 <button
+                  type="button"
                   onClick={onRefresh}
                   className="w-full bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 focus:outline-none flex items-center justify-center"
                 >
-                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                    />
                   </svg>
                   Refresh Data
                 </button>

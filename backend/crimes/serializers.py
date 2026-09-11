@@ -201,13 +201,16 @@ class CrimeStatResponseSerializer(serializers.Serializer):
     arrests = serializers.IntegerField()
     previous_arrests = serializers.IntegerField()
     top_crimes = serializers.ListField(child=serializers.DictField())
+    as_of = serializers.CharField(required=False, allow_null=True)
+    time_frame = serializers.CharField(required=False, allow_null=True)
+    start_date = serializers.CharField(required=False, allow_null=True)
 
     class Meta:
         fields = (
             'total_crimes', 'previous_total_crimes', 'violent_crimes',
-            'previous_violent_crimes', 'property_crimes', 
+            'previous_violent_crimes', 'property_crimes',
             'previous_property_crimes', 'arrests', 'previous_arrests',
-            'top_crimes'
+            'top_crimes', 'as_of', 'time_frame', 'start_date',
         )
         
         

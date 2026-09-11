@@ -1,5 +1,13 @@
-import React, { createContext, useContext, useReducer, useCallback, useMemo } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useReducer,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 import { toast } from 'react-hot-toast';
+import api from '../services/api';
 
 // Action types
 const ACTIONS = {
@@ -12,8 +20,6 @@ const ACTIONS = {
   SET_FILTERS: 'SET_FILTERS',
   CLEAR_ERROR: 'CLEAR_ERROR',
   SET_PAGINATION: 'SET_PAGINATION',
-  SET_CACHE: 'SET_CACHE',
-  CLEAR_CACHE: 'CLEAR_CACHE',
 };
 
 // Initial state
@@ -29,7 +35,6 @@ const initialState = {
     hasNext: false,
     hasPrev: false,
   },
-  cache: new Map(),
   lastUpdated: null,
 };
 
@@ -105,24 +110,6 @@ function crimeDataReducer(state, action) {
         pagination: { ...state.pagination, ...action.payload },
       };
 
-    case ACTIONS.SET_CACHE:
-      const newCache = new Map(state.cache);
-      newCache.set(action.payload.key, {
-        data: action.payload.data,
-        timestamp: Date.now(),
-        ttl: action.payload.ttl || 5 * 60 * 1000, // 5 minutes default
-      });
-      return {
-        ...state,
-        cache: newCache,
-      };
-
-    case ACTIONS.CLEAR_CACHE:
-      return {
-        ...state,
-        cache: new Map(),
-      };
-
     default:
       return state;
   }
@@ -135,57 +122,53 @@ const CrimeDataContext = createContext();
 export function CrimeDataProvider({ children }) {
   const [state, dispatch] = useReducer(crimeDataReducer, initialState);
 
-  // Cache management
+  // Keep cache/pending outside React state so updating them does not recreate
+  // fetchCrimes and trigger useEffect([fetchCrimes]) remount loops.
+  const cacheRef = useRef(new Map());
+  const pendingRequests = useRef(new Map());
+
   const getCachedData = useCallback((key) => {
-    const cached = state.cache.get(key);
+    const cached = cacheRef.current.get(key);
     if (cached && Date.now() - cached.timestamp < cached.ttl) {
       return cached.data;
     }
     return null;
-  }, [state.cache]);
+  }, []);
 
   const setCachedData = useCallback((key, data, ttl = 5 * 60 * 1000) => {
-    dispatch({
-      type: ACTIONS.SET_CACHE,
-      payload: { key, data, ttl },
+    cacheRef.current.set(key, {
+      data,
+      timestamp: Date.now(),
+      ttl,
     });
   }, []);
 
   const clearCache = useCallback(() => {
-    dispatch({ type: ACTIONS.CLEAR_CACHE });
+    cacheRef.current.clear();
   }, []);
 
-  // Request deduplication
-  const pendingRequests = useMemo(() => new Map(), []);
-
   const makeRequest = useCallback(async (requestKey, requestFn) => {
-    // Check if request is already pending
-    if (pendingRequests.has(requestKey)) {
-      return pendingRequests.get(requestKey);
+    if (pendingRequests.current.has(requestKey)) {
+      return pendingRequests.current.get(requestKey);
     }
 
-    // Check cache first
     const cachedData = getCachedData(requestKey);
     if (cachedData) {
       return cachedData;
     }
 
-    // Make the request
     const requestPromise = requestFn()
-      .then(data => {
-        // Cache successful responses
+      .then((data) => {
         setCachedData(requestKey, data);
         return data;
       })
       .finally(() => {
-        // Remove from pending requests
-        pendingRequests.delete(requestKey);
+        pendingRequests.current.delete(requestKey);
       });
 
-    // Store the pending request
-    pendingRequests.set(requestKey, requestPromise);
+    pendingRequests.current.set(requestKey, requestPromise);
     return requestPromise;
-  }, [getCachedData, setCachedData, pendingRequests]);
+  }, [getCachedData, setCachedData]);
 
   // Crime data actions
   const fetchCrimes = useCallback(async (params = {}) => {
@@ -194,11 +177,8 @@ export function CrimeDataProvider({ children }) {
 
       const requestKey = `crimes_${JSON.stringify(params)}`;
       const data = await makeRequest(requestKey, async () => {
-        const response = await fetch(`/api/crimes/?${new URLSearchParams(params)}`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
+        const response = await api.get('crimes/', { params });
+        return response.data;
       });
 
       dispatch({
@@ -211,7 +191,7 @@ export function CrimeDataProvider({ children }) {
 
       return data;
     } catch (error) {
-      const errorMessage = error.message || 'Failed to fetch crimes';
+      const errorMessage = error.formattedMessage || error.message || 'Failed to fetch crimes';
       dispatch({ type: ACTIONS.SET_ERROR, payload: errorMessage });
       toast.error(errorMessage);
       throw error;
@@ -222,16 +202,13 @@ export function CrimeDataProvider({ children }) {
     try {
       const requestKey = `crime_${id}`;
       const data = await makeRequest(requestKey, async () => {
-        const response = await fetch(`/api/crimes/${id}/`);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
+        const response = await api.get(`crimes/${id}/`);
+        return response.data;
       });
 
       return data;
     } catch (error) {
-      const errorMessage = error.message || 'Failed to fetch crime details';
+      const errorMessage = error.formattedMessage || error.message || 'Failed to fetch crime details';
       toast.error(errorMessage);
       throw error;
     }
@@ -241,19 +218,8 @@ export function CrimeDataProvider({ children }) {
     try {
       dispatch({ type: ACTIONS.SET_LOADING, payload: true });
 
-      const response = await fetch('/api/crimes/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(crimeData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const newCrime = await response.json();
+      const response = await api.post('crimes/', crimeData);
+      const newCrime = response.data;
       
       dispatch({
         type: ACTIONS.ADD_CRIMES,
@@ -263,7 +229,7 @@ export function CrimeDataProvider({ children }) {
       toast.success('Crime report created successfully');
       return newCrime;
     } catch (error) {
-      const errorMessage = error.message || 'Failed to create crime report';
+      const errorMessage = error.formattedMessage || error.message || 'Failed to create crime report';
       dispatch({ type: ACTIONS.SET_ERROR, payload: errorMessage });
       toast.error(errorMessage);
       throw error;
@@ -272,32 +238,20 @@ export function CrimeDataProvider({ children }) {
 
   const updateCrime = useCallback(async (id, crimeData) => {
     try {
-      const response = await fetch(`/api/crimes/${id}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(crimeData),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const updatedCrime = await response.json();
+      const response = await api.patch(`crimes/${id}/`, crimeData);
+      const updatedCrime = response.data;
       
       dispatch({
         type: ACTIONS.UPDATE_CRIME,
         payload: updatedCrime,
       });
 
-      // Clear cache for this crime
       setCachedData(`crime_${id}`, updatedCrime);
 
       toast.success('Crime report updated successfully');
       return updatedCrime;
     } catch (error) {
-      const errorMessage = error.message || 'Failed to update crime report';
+      const errorMessage = error.formattedMessage || error.message || 'Failed to update crime report';
       toast.error(errorMessage);
       throw error;
     }
@@ -305,25 +259,18 @@ export function CrimeDataProvider({ children }) {
 
   const deleteCrime = useCallback(async (id) => {
     try {
-      const response = await fetch(`/api/crimes/${id}/`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      await api.delete(`crimes/${id}/`);
 
       dispatch({
         type: ACTIONS.DELETE_CRIME,
         payload: id,
       });
 
-      // Clear cache for this crime
       setCachedData(`crime_${id}`, null);
 
       toast.success('Crime report deleted successfully');
     } catch (error) {
-      const errorMessage = error.message || 'Failed to delete crime report';
+      const errorMessage = error.formattedMessage || error.message || 'Failed to delete crime report';
       toast.error(errorMessage);
       throw error;
     }

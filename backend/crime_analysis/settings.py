@@ -48,6 +48,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_gis',  # GIS support for DRF
     'rest_framework_simplejwt',  # JWT authentication
+    'rest_framework_simplejwt.token_blacklist',  # Refresh token blacklist on logout/rotate
     'django_filters',  # Filtering support
     'corsheaders',  # CORS handling
     'drf_yasg',  # API documentation
@@ -184,15 +185,16 @@ REST_FRAMEWORK = {
         'rest_framework.filters.SearchFilter',
         'rest_framework.filters.OrderingFilter',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'DEFAULT_PAGINATION_CLASS': 'crimes.pagination.FlexiblePageNumberPagination',
     'PAGE_SIZE': 25,
-    'DEFAULT_THROTTLE_CLASSES': [
+    'DEFAULT_THROTTLE_CLASSES': [] if DEBUG else [
         'rest_framework.throttling.AnonRateThrottle',
-        'rest_framework.throttling.UserRateThrottle'
+        'rest_framework.throttling.UserRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
-        'anon': '100/hour',
-        'user': '1000/hour'
+        # Map viewport pans generate many requests; keep prod limits generous
+        'anon': '2000/hour',
+        'user': '10000/hour',
     },
     'EXCEPTION_HANDLER': 'crime_analysis.utils.custom_exception_handler',
 }

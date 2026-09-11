@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getPredictiveAnalysis, getCrimes } from '../../services/crimeService';
+import { getPredictiveAnalysis } from '../../services/crimeService';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
 import { useGeolocation } from '../../hooks/useGeolocation';
@@ -30,13 +30,13 @@ const PredictiveAnalysis = () => {
 
   const crimeTypes = [
     { value: 'ALL', label: 'All Crimes' },
-    { value: 'THEFT', label: 'Theft' },
-    { value: 'ASSAULT', label: 'Assault' },
-    { value: 'BURGLARY', label: 'Burglary' },
-    { value: 'ROBBERY', label: 'Robbery' },
-    { value: 'VANDALISM', label: 'Vandalism' },
-    { value: 'DRUG', label: 'Drug Offenses' },
-    { value: 'FRAUD', label: 'Fraud' }
+    { value: 'Homicide', label: 'Homicide' },
+    { value: 'Robbery', label: 'Robbery' },
+    { value: 'Stealing', label: 'Stealing' },
+    { value: 'Breakings', label: 'Breakings' },
+    { value: 'Dangerous Drugs', label: 'Dangerous Drugs' },
+    { value: 'Criminal Damage', label: 'Criminal Damage' },
+    { value: 'Economic Crimes', label: 'Economic Crimes' },
   ];
 
   // Set user's location as map center if available
@@ -97,55 +97,24 @@ const PredictiveAnalysis = () => {
   };
 
   const fetchCrimeData = async () => {
+    // Kept for map context only — do not fabricate prediction probabilities.
     try {
       setLoading(true);
       setError(null);
-
-      const params = {
-        startDate: selectedDate.toISOString().split('T')[0],
-        endDate: selectedDate.toISOString().split('T')[0],
-        lat: mapCenter[0],
-        lng: mapCenter[1],
-        radius: 5, // Example radius in km
-        crimeTypes: selectedCrimeType !== 'ALL' ? [selectedCrimeType] : undefined,
-      };
-
-      const crimesResponse = await getCrimes(params);
-      const crimes = crimesResponse.results || [];
-
-      // Transform crime data to match prediction format
-      if (Array.isArray(crimes) && crimes.length > 0) {
-        setPredictions(crimes.map(crime => ({
-          latitude: crime.latitude !== undefined ? crime.latitude : 0,
-          longitude: crime.longitude !== undefined ? crime.longitude : 0,
-          probability: Math.random(), // Placeholder for probability
-          crimeType: crime.type || 'UNKNOWN',
-          date: crime.date,
-          address: crime.block_address,
-          timeOfDay: crime.time ?
-            (new Date(crime.date + 'T' + crime.time).getHours() < 12 ? 'Morning' :
-              new Date(crime.date + 'T' + crime.time).getHours() < 18 ? 'Afternoon' : 'Evening') :
-            'All Day',
-        })));
-      } else {
-        setPredictions([]);
-      }
+      await fetchPredictiveData();
     } catch (err) {
-      console.error('Error fetching crime data:', err);
-      setError('Failed to load crime data. Please try again later.');
-      setPredictions([]);
+      setError(err.message || 'Failed to load predictions');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // We'll fetch crime data by default
-    fetchCrimeData();
-  }, [selectedDate, selectedCrimeType, mapCenter]);
+    fetchPredictiveData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate, selectedCrimeType, mapCenter, selectedLocation]);
 
   const handleMapClick = (e) => {
-    console.log('Map clicked at:', e.latlng);
     setSelectedLocation([e.latlng.lat, e.latlng.lng]);
   };
 

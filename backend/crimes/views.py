@@ -6,7 +6,8 @@ import os
 import json
 from dateutil.relativedelta import relativedelta
 from django.conf import settings
-from django.db.models import Count, Sum, Q, F
+from django.db.models import Count, Sum, Q, F, Min, Max
+from django.db.models.functions import TruncMonth
 from django.contrib.gis.geos import Point
 from django.contrib.gis.db.models.functions import Distance, Centroid
 from django.contrib.gis.measure import D
@@ -32,7 +33,8 @@ from .serializers import (
     CrimeCategorySerializer, CrimeMediaSerializer, CrimeNoteSerializer, DistrictSerializer, NeighborhoodSerializer,
     CrimeListSerializer, CrimeDetailSerializer, CrimeCreateSerializer,
     CrimeStatisticSerializer, CrimeHeatmapSerializer, CrimeSearchSerializer,
-    CrimeStatResponseSerializer, PublicCrimeSerializer, NeighborhoodCrimeSummarySerializer
+    CrimeStatResponseSerializer, PublicCrimeSerializer, NeighborhoodCrimeSummarySerializer,
+    CrimeLightSerializer,
 )
 from accounts.permissions import IsAgencyUser
 
@@ -76,84 +78,75 @@ class CrimeViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Apply additional filters to queryset."""
+        return self._filtered_crimes(apply_bbox=True)
+
+    def _filtered_crimes(self, apply_bbox=True):
+        """Shared crime filters. Set apply_bbox=False for national overview loads."""
         user = self.request.user
         logger = logging.getLogger(__name__)
-        queryset = super().get_queryset()
-
-        logger.info(f"Initial queryset count: {queryset.count()}")
+        queryset = Crime.objects.all()
 
         # Filter by user's agency for agency users
         if user.is_authenticated and user.user_type == 'agency' and user.agency:
             queryset = queryset.filter(agency=user.agency)
-            logger.info(f"After agency filter: {queryset.count()} records")
         elif not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
             queryset = queryset.filter(status__in=['reported', 'solved', 'closed'])
-            logger.info(f"After status filter: {queryset.count()} records")
 
         # Ensure location is not null
         queryset = queryset.filter(location__isnull=False)
-        logger.info(f"After location filter: {queryset.count()} records")
 
-        # Geospatial filter - support both bounding box and radius-based filtering
-        north_east_lat = self.request.query_params.get('northEastLat')
-        north_east_lng = self.request.query_params.get('northEastLng')
-        south_west_lat = self.request.query_params.get('southWestLat')
-        south_west_lng = self.request.query_params.get('southWestLng')
+        if apply_bbox:
+            # Geospatial filter - support both bounding box and radius-based filtering
+            north_east_lat = self.request.query_params.get('northEastLat')
+            north_east_lng = self.request.query_params.get('northEastLng')
+            south_west_lat = self.request.query_params.get('southWestLat')
+            south_west_lng = self.request.query_params.get('southWestLng')
 
-        if north_east_lat and north_east_lng and south_west_lat and south_west_lng:
-            # Bounding box filter
-            try:
-                from django.contrib.gis.geos import Polygon
-                # Create a polygon representing the bounding box
-                bbox_coords = [
-                    (float(south_west_lng), float(south_west_lat)),  # SW
-                    (float(north_east_lng), float(south_west_lat)),  # SE
-                    (float(north_east_lng), float(north_east_lat)),   # NE
-                    (float(south_west_lng), float(north_east_lat)),   # NW
-                    (float(south_west_lng), float(south_west_lat))    # Close polygon
-                ]
-                bbox_polygon = Polygon(bbox_coords, srid=4326)
-                queryset = queryset.filter(location__within=bbox_polygon)
-                logger.info(f"After bounding box filter: {queryset.count()} records")
-            except (ValueError, TypeError) as e:
-                logger.error(f"Bounding box filter error: {e}")
-        else:
-            # Fallback to radius-based filter for backward compatibility
-            lat = self.request.query_params.get('lat')
-            lng = self.request.query_params.get('lng')
-            radius = self.request.query_params.get('radius')
-            if lat and lng and radius:
+            if north_east_lat and north_east_lng and south_west_lat and south_west_lng:
                 try:
-                    point = Point(float(lng), float(lat), srid=4326)
-                    queryset = queryset.filter(location__dwithin=(point, D(km=float(radius))))
-                    logger.info(f"After geospatial filter (radius={radius} km): {queryset.count()} records")
+                    from django.contrib.gis.geos import Polygon
+                    bbox_coords = [
+                        (float(south_west_lng), float(south_west_lat)),
+                        (float(north_east_lng), float(south_west_lat)),
+                        (float(north_east_lng), float(north_east_lat)),
+                        (float(south_west_lng), float(north_east_lat)),
+                        (float(south_west_lng), float(south_west_lat)),
+                    ]
+                    bbox_polygon = Polygon(bbox_coords, srid=4326)
+                    queryset = queryset.filter(location__within=bbox_polygon)
                 except (ValueError, TypeError) as e:
-                    logger.error(f"Geospatial filter error: {e}")
+                    logger.error(f"Bounding box filter error: {e}")
+            else:
+                lat = self.request.query_params.get('lat')
+                lng = self.request.query_params.get('lng')
+                radius = self.request.query_params.get('radius')
+                if lat and lng and radius:
+                    try:
+                        point = Point(float(lng), float(lat), srid=4326)
+                        queryset = queryset.filter(location__dwithin=(point, D(km=float(radius))))
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Geospatial filter error: {e}")
 
         # Apply additional filters
         crime_types = self.request.query_params.get('crimeTypes', '').split(',')
         if crime_types and crime_types[0]:
-            queryset = queryset.filter(category__name__in=[t.lower() for t in crime_types])
-            logger.info(f"After crime types filter ({crime_types}): {queryset.count()} records")
+            queryset = queryset.filter(category__name__in=crime_types)
 
-        start_date = self.request.query_params.get('startDate')
+        start_date = self.request.query_params.get('startDate') or self.request.query_params.get('date_from')
         if start_date:
             try:
                 queryset = queryset.filter(date__gte=start_date)
-                logger.info(f"After start date filter ({start_date}): {queryset.count()} records")
             except ValueError as e:
                 logger.error(f"Start date filter error: {e}")
 
-        end_date = self.request.query_params.get('endDate')
+        end_date = self.request.query_params.get('endDate') or self.request.query_params.get('date_to')
         if end_date:
             try:
                 queryset = queryset.filter(date__lte=end_date)
-                logger.info(f"After end date filter ({end_date}): {queryset.count()} records")
             except ValueError as e:
                 logger.error(f"End date filter error: {e}")
 
-        logger.info(f"Final queryset count: {queryset.count()}")
-        return queryset
+        return queryset.select_related('category', 'district', 'neighborhood', 'agency')
 
     def perform_create(self, serializer):
         """Ensure the crime is associated with the user's agency."""
@@ -177,13 +170,16 @@ class CrimeViewSet(viewsets.ModelViewSet):
             return Response({'error': 'You can only delete your agency’s crimes'}, status=status.HTTP_403_FORBIDDEN)
         instance.delete()
 
-    @method_decorator(cache_page(60 * 15))  # Cache for 15 minutes
     @action(detail=False, methods=['get'])
     def stats(self, request):
         """Get crime statistics for dashboard charts."""
         logger = logging.getLogger(__name__)
         try:
-            cache_key = f"crime_stats_{request.user.id if request.user.is_authenticated else 'anon'}_{request.query_params.get('agency_id')}_{request.query_params.get('time_frame', 'last30Days')}"
+            cache_key = (
+                f"crime_stats_v2_{request.user.id if request.user.is_authenticated else 'anon'}_"
+                f"{request.query_params.get('agency_id')}_"
+                f"{request.query_params.get('time_frame', 'last30Days')}"
+            )
             cached_data = cache.get(cache_key)
             if cached_data:
                 logger.info("Using cached stats data.")
@@ -192,28 +188,58 @@ class CrimeViewSet(viewsets.ModelViewSet):
             user = self.request.user
             agency_id = request.query_params.get('agency_id')
             time_frame = request.query_params.get('time_frame', 'last30Days')
-            crime_types = request.query_params.get('crime_types', '').split(',')
-            radius = request.query_params.get('radius', 5)
+            crime_types = (
+                request.query_params.get('crime_types')
+                or request.query_params.get('crimeTypes')
+                or ''
+            ).split(',')
+            radius = request.query_params.get('radius')
 
-            logger.info(f"Stats request parameters: agency_id={agency_id}, time_frame={time_frame}, crime_types={crime_types}, radius={radius}")
+            logger.info(
+                f"Stats request parameters: agency_id={agency_id}, "
+                f"time_frame={time_frame}, crime_types={crime_types}, radius={radius}"
+            )
 
-            end_date = datetime.date.today()
-            if time_frame == 'last30Days':
+            # Seeded/historical datasets may end before "today" — anchor relative windows
+            # to the latest crime date so Last Month / All Time behave usefully.
+            today = datetime.date.today()
+            latest_crime = Crime.objects.aggregate(mx=Max('date'))['mx'] or today
+            end_date = latest_crime if latest_crime < today - datetime.timedelta(days=14) else today
+
+            previous_start_date = previous_end_date = None
+            start_date = None  # None = all time (no lower bound)
+
+            if time_frame in ('last24Hours', 'last24hours'):
+                start_date = end_date - datetime.timedelta(days=1)
+                previous_end_date = start_date - datetime.timedelta(days=1)
+                previous_start_date = previous_end_date - datetime.timedelta(days=1)
+            elif time_frame in ('last7Days', 'lastWeek', 'lastweek'):
+                start_date = end_date - datetime.timedelta(days=7)
+                previous_end_date = start_date - datetime.timedelta(days=1)
+                previous_start_date = previous_end_date - datetime.timedelta(days=7)
+            elif time_frame in ('last30Days', 'lastMonth', 'lastmonth'):
                 start_date = end_date - datetime.timedelta(days=30)
-                previous_start_date = start_date - datetime.timedelta(days=30)
                 previous_end_date = start_date - datetime.timedelta(days=1)
-            elif time_frame == 'last90Days':
+                previous_start_date = previous_end_date - datetime.timedelta(days=30)
+            elif time_frame in ('last90Days', 'last90days'):
                 start_date = end_date - datetime.timedelta(days=90)
-                previous_start_date = start_date - datetime.timedelta(days=90)
                 previous_end_date = start_date - datetime.timedelta(days=1)
-            elif time_frame == 'thisYear':
-                start_date = datetime.date(end_date.year, 1, 1)
-                previous_start_date = datetime.date(end_date.year - 1, 1, 1)
-                previous_end_date = datetime.date(end_date.year - 1, 12, 31)
+                previous_start_date = previous_end_date - datetime.timedelta(days=90)
+            elif time_frame in ('thisYear', 'lastYear', 'lastyear'):
+                # Last 365 days ending at data as-of date (covers multi-year seeds)
+                start_date = end_date - datetime.timedelta(days=365)
+                previous_end_date = start_date - datetime.timedelta(days=1)
+                previous_start_date = previous_end_date - datetime.timedelta(days=365)
+            elif time_frame in ('allTime', 'all_time', 'all'):
+                start_date = None
+                earliest = Crime.objects.aggregate(mn=Min('date'))['mn'] or end_date
+                span_days = max((end_date - earliest).days, 1)
+                previous_end_date = earliest - datetime.timedelta(days=1)
+                previous_start_date = previous_end_date - datetime.timedelta(days=span_days)
             else:
                 start_date = end_date - datetime.timedelta(days=30)
-                previous_start_date = start_date - datetime.timedelta(days=30)
                 previous_end_date = start_date - datetime.timedelta(days=1)
+                previous_start_date = previous_end_date - datetime.timedelta(days=30)
 
             area_filter = Q()
             lat = self.request.query_params.get('lat')
@@ -240,17 +266,21 @@ class CrimeViewSet(viewsets.ModelViewSet):
 
             status_filter = Q()
             if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                status_filter = Q(status__in=['reported', 'solved', 'closed'])
+                # Include under_investigation — seed data uses it heavily
+                status_filter = Q(status__in=['reported', 'under_investigation', 'solved', 'closed'])
 
             base_query = Crime.objects.filter(location__isnull=False)
-            current_crimes = base_query.filter(
-                date__gte=start_date,
-                date__lte=end_date
-            ).filter(area_filter).filter(type_filter).filter(agency_filter).filter(status_filter)
-            previous_crimes = base_query.filter(
-                date__gte=previous_start_date,
-                date__lte=previous_end_date
-            ).filter(area_filter).filter(type_filter).filter(agency_filter).filter(status_filter)
+            current_qs = base_query.filter(date__lte=end_date)
+            if start_date is not None:
+                current_qs = current_qs.filter(date__gte=start_date)
+            current_crimes = current_qs.filter(area_filter).filter(type_filter).filter(agency_filter).filter(status_filter)
+
+            previous_crimes = base_query.none()
+            if previous_start_date and previous_end_date and time_frame not in ('allTime', 'all_time', 'all'):
+                previous_crimes = base_query.filter(
+                    date__gte=previous_start_date,
+                    date__lte=previous_end_date,
+                ).filter(area_filter).filter(type_filter).filter(agency_filter).filter(status_filter)
 
             crime_type_counts = current_crimes.values('category__name').annotate(
                 count=Count('id')
@@ -270,6 +300,9 @@ class CrimeViewSet(viewsets.ModelViewSet):
                 'arrests': current_crimes.filter(arrests_made=True).count(),
                 'previous_arrests': previous_crimes.filter(arrests_made=True).count(),
                 'top_crimes': list(crime_type_counts),
+                'as_of': end_date.isoformat(),
+                'time_frame': time_frame,
+                'start_date': start_date.isoformat() if start_date else None,
             }
 
             serializer = CrimeStatResponseSerializer(stats)
@@ -282,23 +315,43 @@ class CrimeViewSet(viewsets.ModelViewSet):
                 'detail': str(e) if settings.DEBUG else 'See server logs for details'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    @method_decorator(cache_page(60 * 15))
     @action(detail=False, methods=['get'])
     def trends(self, request):
         """Get crime trends over time for Line chart."""
         logger = logging.getLogger(__name__)
         try:
-            cache_key = f"crime_trends_{request.user.id if request.user.is_authenticated else 'anon'}_{request.query_params.get('months', 6)}_{request.query_params.get('agency_id')}"
+            user = self.request.user
+            time_frame = request.query_params.get('time_frame')
+            months = int(request.query_params.get('months', 6))
+            agency_id = request.query_params.get('agency_id')
+
+            today = datetime.date.today()
+            latest_crime = Crime.objects.aggregate(mx=Max('date'))['mx'] or today
+            end_date = latest_crime if latest_crime < today - datetime.timedelta(days=14) else today
+
+            if time_frame in ('allTime', 'all_time', 'all'):
+                earliest = Crime.objects.aggregate(mn=Min('date'))['mn'] or end_date
+                start_date = earliest.replace(day=1)
+            elif time_frame in ('last24Hours', 'last24hours'):
+                start_date = end_date - datetime.timedelta(days=1)
+            elif time_frame in ('last7Days', 'lastWeek', 'lastweek'):
+                start_date = end_date - datetime.timedelta(days=7)
+            elif time_frame in ('last30Days', 'lastMonth', 'lastmonth'):
+                start_date = end_date - datetime.timedelta(days=30)
+            elif time_frame in ('thisYear', 'lastYear', 'lastyear'):
+                start_date = end_date - datetime.timedelta(days=365)
+            else:
+                start_date = end_date - relativedelta(months=months)
+
+            cache_key = (
+                f"crime_trends_v2_{request.user.id if request.user.is_authenticated else 'anon'}_"
+                f"{time_frame or months}_{agency_id}_"
+                f"{request.query_params.get('lat')}_{request.query_params.get('radius')}"
+            )
             cached_data = cache.get(cache_key)
             if cached_data:
                 logger.info("Using cached trends data.")
                 return Response(cached_data)
-
-            user = self.request.user
-            months = int(request.query_params.get('months', 6))
-            agency_id = request.query_params.get('agency_id')
-            end_date = datetime.date.today()
-            start_date = end_date - relativedelta(months=months)
 
             lat = request.query_params.get('lat')
             lng = request.query_params.get('lng')
@@ -323,7 +376,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
 
             status_filter = Q()
             if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                status_filter = Q(status__in=['reported', 'solved', 'closed'])
+                status_filter = Q(status__in=['reported', 'under_investigation', 'solved', 'closed'])
 
             type_filter = Q()
             crime_types = request.query_params.get('crime_types', '').split(',')
@@ -336,47 +389,54 @@ class CrimeViewSet(viewsets.ModelViewSet):
                 location__isnull=False
             ).filter(area_filter).filter(agency_filter).filter(status_filter).filter(type_filter)
 
+            # Single grouped query instead of N monthly count loops (allTime ≈ 80+ months)
+            monthly = (
+                queryset
+                .annotate(month=TruncMonth('date'))
+                .values('month')
+                .annotate(
+                    total=Count('id'),
+                    violent=Count('id', filter=Q(is_violent=True)),
+                    property=Count('id', filter=Q(property_loss__isnull=False)),
+                    arrests=Count('id', filter=Q(arrests_made=True)),
+                )
+                .order_by('month')
+            )
+
+            by_month = {
+                row['month'].date() if hasattr(row['month'], 'date') else row['month']: row
+                for row in monthly
+                if row['month'] is not None
+            }
+
             trends = []
-            current_date = start_date.replace(day=1)
             labels = []
             total_crimes = []
             violent_crimes = []
             property_crimes = []
             arrests_data = []
 
-            has_data = queryset.exists()
+            current_date = start_date.replace(day=1)
             while current_date <= end_date:
-                next_month = current_date + relativedelta(months=1)
-                month_crimes = queryset.filter(date__gte=current_date, date__lt=next_month)
-                month_count = month_crimes.count()
-
-                if has_data:
-                    violent_count = month_crimes.filter(is_violent=True).count()
-                    property_count = month_crimes.filter(property_loss__isnull=False).count()
-                    arrests_count = month_crimes.filter(arrests_made=True).count()
-                else:
-                    import random
-                    month_count = random.randint(30, 100)
-                    violent_count = random.randint(5, 20)
-                    property_count = random.randint(15, 40)
-                    arrests_count = random.randint(2, 15)
-                    logger.info(f"Using placeholder data for {current_date.strftime('%Y-%m')}")
+                row = by_month.get(current_date) or {}
+                month_count = row.get('total', 0) or 0
+                violent_count = row.get('violent', 0) or 0
+                property_count = row.get('property', 0) or 0
+                arrests_count = row.get('arrests', 0) or 0
 
                 trends.append({
                     'date': current_date.strftime('%Y-%m'),
                     'total': month_count,
                     'violent': violent_count,
                     'property': property_count,
-                    'arrests': arrests_count
+                    'arrests': arrests_count,
                 })
-
                 labels.append(current_date.strftime('%b %Y'))
                 total_crimes.append(month_count)
                 violent_crimes.append(violent_count)
                 property_crimes.append(property_count)
                 arrests_data.append(arrests_count)
-
-                current_date = next_month
+                current_date = (current_date + relativedelta(months=1)).replace(day=1)
 
             chart_data = {
                 'labels': labels,
@@ -564,43 +624,374 @@ class CrimeViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def map_data(self, request):
-        """Get lightweight crime data for map visualization."""
+        """Get lightweight crime data for map visualization (viewport-friendly)."""
         logger = logging.getLogger(__name__)
         try:
             offset = int(request.query_params.get('offset', 0))
-            limit = int(request.query_params.get('limit', 1000))
-            neighborhood_id = request.query_params.get('neighborhood_id')
-            start_date = request.query_params.get('start_date') or datetime.date.today() - datetime.timedelta(days=30)
-            end_date = request.query_params.get('end_date')
-            user = self.request.user
+            limit = min(int(request.query_params.get('limit', 1000)), 5000)
 
-            queryset = self.get_queryset()
+            # Optional date filters only — do not force last-30-days for map viewport loads
+            start_date = (
+                request.query_params.get('start_date')
+                or request.query_params.get('startDate')
+                or request.query_params.get('date_from')
+            )
+            end_date = (
+                request.query_params.get('end_date')
+                or request.query_params.get('endDate')
+                or request.query_params.get('date_to')
+            )
+            neighborhood_id = request.query_params.get('neighborhood_id')
+
+            # get_queryset already applies agency/status + bbox/radius + crime type filters
+            queryset = self.get_queryset().filter(location__isnull=False)
             if neighborhood_id:
                 try:
                     queryset = queryset.filter(neighborhood__id=int(neighborhood_id))
                 except ValueError:
                     logger.error(f"Invalid neighborhood_id: {neighborhood_id}")
-                    return Response({'error': 'Invalid neighborhood_id'}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {'error': 'Invalid neighborhood_id'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
             if start_date:
                 queryset = queryset.filter(date__gte=start_date)
             if end_date:
                 queryset = queryset.filter(date__lte=end_date)
 
-            queryset = queryset[offset:offset + limit]
-            serializer = CrimeLightSerializer(queryset, many=True)
-            logger.info(f"Map data returned {len(serializer.data)} crimes (offset={offset}, limit={limit})")
+            # Prefer recent crimes when capping a dense viewport
+            queryset = queryset.order_by('-date', '-time')
+            total = queryset.count()
+            page = queryset.select_related('category')[offset:offset + limit]
+            serializer = CrimeLightSerializer(page, many=True)
+            logger.info(
+                f"Map data returned {len(serializer.data)} crimes "
+                f"(offset={offset}, limit={limit}, total={total})"
+            )
             return Response({
                 'results': serializer.data,
-                'count': queryset.count(),
+                'count': total,
                 'offset': offset,
-                'limit': limit
+                'limit': limit,
             })
         except Exception as e:
             logger.error(f"Error in map_data action: {e}", exc_info=True)
             return Response({
                 'error': 'An unexpected error occurred',
-                'detail': str(e) if settings.DEBUG else 'See server logs for details'
+                'detail': str(e) if settings.DEBUG else 'See server logs for details',
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def viewport(self, request):
+        """
+        Zoom-aware map payload (Google Maps–style).
+        - zoom < 8: national district aggregates (full dataset, no bbox clip)
+        - zoom 8–11: grid clusters (bbox, or national when zoom < 9)
+        - zoom >= 12: individual crime points in viewport
+        """
+        logger = logging.getLogger(__name__)
+        try:
+            zoom = int(float(request.query_params.get('zoom', 12)))
+            if zoom < 8:
+                mode = 'districts'
+            elif zoom < 12:
+                mode = 'clusters'
+            else:
+                mode = 'points'
+
+            start_date = (
+                request.query_params.get('start_date')
+                or request.query_params.get('startDate')
+                or request.query_params.get('date_from')
+            )
+            end_date = (
+                request.query_params.get('end_date')
+                or request.query_params.get('endDate')
+                or request.query_params.get('date_to')
+            )
+
+            # Country / far-out view: load ALL matching crimes (ignore map bbox)
+            national = (
+                mode == 'districts'
+                or zoom < 9
+                or request.query_params.get('national', '').lower() in ('1', 'true', 'yes')
+            )
+            queryset = self._filtered_crimes(apply_bbox=not national).filter(location__isnull=False)
+            if start_date:
+                queryset = queryset.filter(date__gte=start_date)
+            if end_date:
+                queryset = queryset.filter(date__lte=end_date)
+
+            total = queryset.count()
+
+            if mode == 'districts':
+                rows = (
+                    queryset.values('district_id', 'district__name')
+                    .annotate(
+                        count=Count('id'),
+                        violent_count=Count('id', filter=Q(is_violent=True)),
+                    )
+                    .order_by('-count')
+                )
+                features = []
+                for row in rows:
+                    lat = lng = None
+                    name = row['district__name'] or 'Unknown'
+                    district_id = row['district_id']
+
+                    if district_id:
+                        district = District.objects.filter(pk=district_id).first()
+                        if district and district.location:
+                            lat, lng = district.location.y, district.location.x
+                        else:
+                            sample = list(
+                                queryset.filter(district_id=district_id)
+                                .values_list('location', flat=True)[:80]
+                            )
+                            if sample:
+                                lat = sum(p.y for p in sample) / len(sample)
+                                lng = sum(p.x for p in sample) / len(sample)
+                    else:
+                        name = 'Unassigned'
+                        sample = list(
+                            queryset.filter(district__isnull=True)
+                            .values_list('location', flat=True)[:80]
+                        )
+                        if sample:
+                            lat = sum(p.y for p in sample) / len(sample)
+                            lng = sum(p.x for p in sample) / len(sample)
+
+                    if lat is None or lng is None:
+                        continue
+                    features.append({
+                        'id': district_id or 'unassigned',
+                        'name': name,
+                        'lat': lat,
+                        'lng': lng,
+                        'count': row['count'],
+                        'violent_count': row['violent_count'],
+                        'type': 'district',
+                    })
+                return Response({
+                    'mode': mode,
+                    'zoom': zoom,
+                    'national': True,
+                    'count': total,
+                    'results': features,
+                })
+
+            if mode == 'clusters':
+                if zoom < 9:
+                    grid = 0.5
+                elif zoom < 11:
+                    grid = 0.2
+                else:
+                    grid = 0.08
+
+                # Include every crime in scope (national or bbox) — no artificial scan cap
+                locs = queryset.values_list('location', 'is_violent')
+                buckets = {}
+                for loc, is_violent in locs.iterator(chunk_size=2000):
+                    if not loc:
+                        continue
+                    cell_lat = round(loc.y / grid) * grid
+                    cell_lng = round(loc.x / grid) * grid
+                    key = (cell_lat, cell_lng)
+                    if key not in buckets:
+                        buckets[key] = {'count': 0, 'violent_count': 0}
+                    buckets[key]['count'] += 1
+                    if is_violent:
+                        buckets[key]['violent_count'] += 1
+
+                features = [
+                    {
+                        'id': f'{lat:.4f},{lng:.4f}',
+                        'lat': lat,
+                        'lng': lng,
+                        'count': data['count'],
+                        'violent_count': data['violent_count'],
+                        'type': 'cluster',
+                        'grid': grid,
+                    }
+                    for (lat, lng), data in buckets.items()
+                ]
+                features.sort(key=lambda x: x['count'], reverse=True)
+                return Response({
+                    'mode': mode,
+                    'zoom': zoom,
+                    'national': national,
+                    'count': total,
+                    'results': features,
+                })
+
+            # points — viewport only (keep map responsive)
+            limit = min(int(request.query_params.get('limit', 2500)), 5000)
+            page = queryset.select_related('category').order_by('-date', '-time')[:limit]
+            serializer = CrimeLightSerializer(page, many=True)
+            return Response({
+                'mode': mode,
+                'zoom': zoom,
+                'national': False,
+                'count': total,
+                'limit': limit,
+                'truncated': len(serializer.data) < total,
+                'results': serializer.data,
+            })
+        except Exception as e:
+            logger.error(f"Error in viewport action: {e}", exc_info=True)
+            return Response({
+                'error': 'An unexpected error occurred',
+                'detail': str(e) if settings.DEBUG else 'See server logs for details',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    @action(detail=False, methods=['get'])
+    def download_summary(self, request):
+        """Get crime summary data for download/visualization."""
+        logger = logging.getLogger(__name__)
+        try:
+            hierarchical = request.query_params.get('hierarchical', 'false').lower() == 'true'
+            lat = request.query_params.get('lat')
+            lng = request.query_params.get('lng')
+            radius = request.query_params.get('radius', 5)
+
+            end_date = datetime.date.today()
+            start_date = end_date - datetime.timedelta(days=30)
+
+            start_date_param = request.query_params.get('start_date')
+            end_date_param = request.query_params.get('end_date')
+            if start_date_param:
+                try:
+                    start_date = datetime.datetime.fromisoformat(start_date_param).date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid start_date format'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+            if end_date_param:
+                try:
+                    end_date = datetime.datetime.fromisoformat(end_date_param).date()
+                except ValueError:
+                    return Response(
+                        {'error': 'Invalid end_date format'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            queryset = self.get_queryset().filter(
+                date__gte=start_date,
+                date__lte=end_date,
+            )
+
+            if lat and lng and radius:
+                try:
+                    center = Point(float(lng), float(lat), srid=4326)
+                    queryset = queryset.filter(
+                        location__dwithin=(center, D(km=float(radius)))
+                    )
+                except (ValueError, TypeError):
+                    return Response(
+                        {'error': 'Invalid coordinates or radius'},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+
+            if hierarchical:
+                districts_data = []
+                for district in District.objects.all():
+                    district_crimes = queryset.filter(district=district)
+                    if not district_crimes.exists():
+                        continue
+
+                    neighborhoods_data = []
+                    for neighborhood in district.neighborhoods.all():
+                        neighborhood_crimes = district_crimes.filter(
+                            neighborhood=neighborhood
+                        )
+                        if not neighborhood_crimes.exists():
+                            continue
+
+                        crime_stats = neighborhood_crimes.aggregate(
+                            total_count=Count('id'),
+                            violent_count=Count('id', filter=Q(is_violent=True)),
+                            property_damage=Sum('property_loss'),
+                        )
+                        categories = list(
+                            neighborhood_crimes.values(name=F('category__name'))
+                            .annotate(count=Count('id'))
+                            .order_by('-count')
+                            .values('name', 'count')[:10]
+                        )
+                        neighborhoods_data.append({
+                            'neighborhood_id': neighborhood.id,
+                            'neighborhood_name': neighborhood.name,
+                            'crime_summary': {
+                                'total_count': crime_stats['total_count'] or 0,
+                                'violent_count': crime_stats['violent_count'] or 0,
+                                'property_damage': float(
+                                    crime_stats['property_damage'] or 0
+                                ),
+                                'centroid': {
+                                    'latitude': (
+                                        neighborhood.location.y
+                                        if neighborhood.location else None
+                                    ),
+                                    'longitude': (
+                                        neighborhood.location.x
+                                        if neighborhood.location else None
+                                    ),
+                                },
+                                'categories': categories,
+                            },
+                        })
+
+                    district_stats = district_crimes.aggregate(
+                        total_count=Count('id'),
+                        violent_count=Count('id', filter=Q(is_violent=True)),
+                        property_damage=Sum('property_loss'),
+                    )
+                    districts_data.append({
+                        'district_id': district.id,
+                        'district_name': district.name,
+                        'total_crimes': district_stats['total_count'] or 0,
+                        'neighborhoods': neighborhoods_data,
+                    })
+
+                return Response({
+                    'districts': districts_data,
+                    'date_range': {
+                        'start_date': start_date.isoformat(),
+                        'end_date': end_date.isoformat(),
+                    },
+                    'hierarchical': True,
+                })
+
+            crime_stats = queryset.aggregate(
+                total_count=Count('id'),
+                violent_count=Count('id', filter=Q(is_violent=True)),
+                property_damage=Sum('property_loss'),
+            )
+            categories = list(
+                queryset.values(name=F('category__name'))
+                .annotate(count=Count('id'))
+                .order_by('-count')
+                .values('name', 'count')
+            )
+            return Response({
+                'total_crimes': crime_stats['total_count'] or 0,
+                'violent_crimes': crime_stats['violent_count'] or 0,
+                'property_damage': float(crime_stats['property_damage'] or 0),
+                'categories': categories,
+                'date_range': {
+                    'start_date': start_date.isoformat(),
+                    'end_date': end_date.isoformat(),
+                },
+                'hierarchical': False,
+            })
+        except Exception as e:
+            logger.error(f"Error in download_summary: {e}", exc_info=True)
+            return Response({
+                'error': 'An unexpected error occurred',
+                'detail': str(e) if settings.DEBUG else 'See server logs for details',
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 class CrimeCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for crime categories."""
@@ -733,142 +1124,6 @@ def public_crimes(request):
         logger.error(f"Error in public_crimes: {e}", exc_info=True)
         return Response({"error": str(e)}, status=500)
 
-    @action(detail=False, methods=['get'])
-    def download_summary(self, request):
-        """Get crime summary data for download/visualization."""
-        logger = logging.getLogger(__name__)
-        try:
-            # Parse parameters
-            hierarchical = request.query_params.get('hierarchical', 'false').lower() == 'true'
-            lat = request.query_params.get('lat')
-            lng = request.query_params.get('lng')
-            radius = request.query_params.get('radius', 5)
-
-            # Get date range (default to last 30 days)
-            end_date = datetime.date.today()
-            start_date = end_date - datetime.timedelta(days=30)
-
-            start_date_param = request.query_params.get('start_date')
-            end_date_param = request.query_params.get('end_date')
-            if start_date_param:
-                try:
-                    start_date = datetime.datetime.fromisoformat(start_date_param).date()
-                except ValueError:
-                    return Response({'error': 'Invalid start_date format'}, status=status.HTTP_400_BAD_REQUEST)
-            if end_date_param:
-                try:
-                    end_date = datetime.datetime.fromisoformat(end_date_param).date()
-                except ValueError:
-                    return Response({'error': 'Invalid end_date format'}, status=status.HTTP_400_BAD_REQUEST)
-
-            # Base queryset
-            queryset = self.get_queryset().filter(
-                date__gte=start_date,
-                date__lte=end_date
-            )
-
-            # Apply geospatial filter if coordinates provided
-            if lat and lng and radius:
-                try:
-                    center = Point(float(lng), float(lat), srid=4326)
-                    queryset = queryset.filter(location__dwithin=(center, D(km=float(radius))))
-                except (ValueError, TypeError):
-                    return Response({'error': 'Invalid coordinates or radius'}, status=status.HTTP_400_BAD_REQUEST)
-
-            if hierarchical:
-                # Group by district and neighborhood
-                districts_data = []
-                districts = District.objects.all()
-
-                for district in districts:
-                    district_crimes = queryset.filter(district=district)
-                    if district_crimes.exists():
-                        neighborhoods_data = []
-                        neighborhoods = district.neighborhoods.all()
-
-                        for neighborhood in neighborhoods:
-                            neighborhood_crimes = district_crimes.filter(neighborhood=neighborhood)
-                            if neighborhood_crimes.exists():
-                                crime_stats = neighborhood_crimes.aggregate(
-                                    total_count=Count('id'),
-                                    violent_count=Count('id', filter=Q(is_violent=True)),
-                                    property_damage=Sum('property_loss')
-                                )
-
-                                neighborhoods_data.append({
-                                    'neighborhood_id': neighborhood.id,
-                                    'neighborhood_name': neighborhood.name,
-                                    'crime_summary': {
-                                        'total_count': crime_stats['total_count'] or 0,
-                                        'violent_count': crime_stats['violent_count'] or 0,
-                                        'property_damage': float(crime_stats['property_damage'] or 0),
-                                        'centroid': {
-                                            'latitude': neighborhood.location.y if neighborhood.location else None,
-                                            'longitude': neighborhood.location.x if neighborhood.location else None
-                                        },
-                                        'categories': list(
-                                            neighborhood_crimes.values('category__name')
-                                            .annotate(count=Count('id'))
-                                            .order_by('-count')
-                                            .values('name', 'count')[:10]
-                                        )
-                                    }
-                                })
-
-                        district_stats = district_crimes.aggregate(
-                            total_count=Count('id'),
-                            violent_count=Count('id', filter=Q(is_violent=True)),
-                            property_damage=Sum('property_loss')
-                        )
-
-                        districts_data.append({
-                            'district_id': district.id,
-                            'district_name': district.name,
-                            'total_crimes': district_stats['total_count'] or 0,
-                            'neighborhoods': neighborhoods_data
-                        })
-
-                return Response({
-                    'districts': districts_data,
-                    'date_range': {
-                        'start_date': start_date.isoformat(),
-                        'end_date': end_date.isoformat()
-                    },
-                    'hierarchical': True
-                })
-            else:
-                # Flat summary
-                crime_stats = queryset.aggregate(
-                    total_count=Count('id'),
-                    violent_count=Count('id', filter=Q(is_violent=True)),
-                    property_damage=Sum('property_loss')
-                )
-
-                categories = list(
-                    queryset.values('category__name')
-                    .annotate(count=Count('id'))
-                    .order_by('-count')
-                    .values('name', 'count')
-                )
-
-                return Response({
-                    'total_crimes': crime_stats['total_count'] or 0,
-                    'violent_crimes': crime_stats['violent_count'] or 0,
-                    'property_damage': float(crime_stats['property_damage'] or 0),
-                    'categories': categories,
-                    'date_range': {
-                        'start_date': start_date.isoformat(),
-                        'end_date': end_date.isoformat()
-                    },
-                    'hierarchical': False
-                })
-
-        except Exception as e:
-            logger.error(f"Error in download_summary: {e}", exc_info=True)
-            return Response({
-                'error': 'An unexpected error occurred',
-                'detail': str(e) if settings.DEBUG else 'See server logs for details'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 def get_exported_crime_summary(request):
     file_path = os.path.join(settings.MEDIA_ROOT, 'exports', 'crime_data_export.json')

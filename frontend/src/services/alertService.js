@@ -8,31 +8,14 @@ import api from './api';
 
 export const getAlerts = async () => {
   try {
-    console.log('Attempting to fetch alerts');
     const response = await api.get('/alerts/alerts/');
-
-    console.log('Full response:', response);
-    console.log('Response data:', response.data);
-    console.log('Response data type:', typeof response.data);
-
-    // If the alerts are at a different endpoint, fetch them directly
-    if (response.data.alerts && typeof response.data.alerts === 'string') {
-      const alertsResponse = await api.get(response.data.alerts);
-      return alertsResponse.data;
-    }
-
-    // Fallback to handling different response structures
     const data = response.data;
-
-    if (!data) {
-      console.error('No data received from API');
-      return [];
-    }
-
-    return Array.isArray(data) ? data : [];
+    if (!data) return [];
+    if (Array.isArray(data)) return data;
+    if (Array.isArray(data.results)) return data.results;
+    return [];
   } catch (error) {
     console.error('Detailed error in getAlerts:', error);
-    console.error('Error response:', error.response);
     throw new Error(error.formattedMessage || 'Failed to fetch alerts');
   }
 };
