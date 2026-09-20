@@ -267,12 +267,29 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
+# Behind Cloudflare Flexible / nginx: trust X-Forwarded-Proto from the reverse proxy
+# so request.is_secure(), secure cookies, and CSRF behave correctly over HTTPS at the edge.
+# Safe only when clients cannot hit the origin directly (prefer Cloudflare-only / OCI locked
+# to Cloudflare IP ranges); otherwise a client could spoof the header. See README.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 # Email settings
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@crimespace.org')
 
 # Frontend URL for password reset links etc.
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+# CSRF trusted origins — explicit env list, or derive from https FRONTEND_URL
+_csrf_trusted = [
+    origin.strip()
+    for origin in os.environ.get('CSRF_TRUSTED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+if not _csrf_trusted and FRONTEND_URL.startswith('https://'):
+    _csrf_trusted = [FRONTEND_URL.rstrip('/')]
+CSRF_TRUSTED_ORIGINS = _csrf_trusted
 
 # GIS Library configurations
 GDAL_LIBRARY_PATH = os.environ.get('GDAL_LIBRARY_PATH')
