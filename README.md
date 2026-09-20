@@ -52,6 +52,8 @@ For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` ngin
    `docker compose --profile production up -d --build frontend`
 
 - Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
+- Cloudflare sets/overwrites `X-Forwarded-Proto` by default; keep SSL mode **Flexible** (or Full later). Do not expose origin `:80` to the public internet if possible (prefer Cloudflare-only / OCI locked to Cloudflare IP ranges) so clients cannot spoof that header by hitting the VM directly — Django trusts it via `SECURE_PROXY_SSL_HEADER`.
+- The nginx `_` catch-all is intentional for IP/localhost health checks; lock down the OCI security list to Cloudflare (or close direct `:80` from `0.0.0.0/0`) if you want to shrink that surface.
 
 See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke _` (named host plus catch-all for IP/localhost probes).
 
