@@ -187,9 +187,8 @@ out/
 .nuxt
 dist
 
-# Gatsby files
+# Gatsby/Nuxt caches (do NOT ignore Vite's public/ static assets)
 .cache/
-public
 
 # Serverless directories
 .serverless/

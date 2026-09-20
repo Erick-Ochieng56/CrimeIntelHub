@@ -1,15 +1,14 @@
-# Use Python 3.11 slim image
-FROM python:3.11-slim
+# Unified GIS runtime for local + production (Linux).
+# Avoids Windows GDAL wheels entirely — same image everywhere.
+FROM python:3.11-slim-bookworm
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-ENV DJANGO_SETTINGS_MODULE=crime_analysis.settings
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=crime_analysis.settings
 
-# Set work directory
 WORKDIR /app
 
-# Install system dependencies
+# System GIS + Postgres client (GDAL/GEOS/PROJ for GeoDjango)
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gdal-bin \
@@ -19,27 +18,40 @@ RUN apt-get update \
         postgresql-client \
         build-essential \
         libpq-dev \
+        curl \
+        g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
+# Build-time env so Django can import during image build if needed
+ARG SECRET_KEY=build-only-not-for-runtime
+ARG REDIS_URL=redis://localhost:6379/0
+ARG DB_NAME=crime_analysis_db
+ARG DB_USER=crime_analysis_user
+ARG DB_PASSWORD=crime_analysis_password
+ARG DB_HOST=localhost
+ARG DEBUG=True
+ENV SECRET_KEY=$SECRET_KEY \
+    REDIS_URL=$REDIS_URL \
+    DB_NAME=$DB_NAME \
+    DB_USER=$DB_USER \
+    DB_PASSWORD=$DB_PASSWORD \
+    DB_HOST=$DB_HOST \
+    DEBUG=$DEBUG
+
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir "GDAL==$(gdal-config --version)"
 
-# Copy project
 COPY . .
+RUN mkdir -p logs media staticfiles \
+    && sed -i 's/\r$//' docker-entrypoint.sh \
+    && chmod +x docker-entrypoint.sh
 
-# Create logs directory
-RUN mkdir -p logs
-
-# Collect static files
-RUN python manage.py collectstatic --noinput
-
-# Expose port
 EXPOSE 8000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
-# Run the application
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "120", "crime_analysis.wsgi:application"]
+ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "crime_analysis.wsgi:application"]

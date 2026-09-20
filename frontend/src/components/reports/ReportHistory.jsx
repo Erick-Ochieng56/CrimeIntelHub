@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getReportHistory, deleteReport } from '../../services/reportService';
+import { getReportHistory, deleteReport, downloadReportFile } from '../../services/reportService';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
 import Modal from '../common/Modal';
@@ -67,13 +67,13 @@ const ReportHistory = () => {
     setViewReport(report);
   };
   
-  const handleDownload = (url, filename) => {
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async (report) => {
+    try {
+      await downloadReportFile(report);
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      setError(err.message || 'Failed to download report.');
+    }
   };
   
   // Filter reports based on search text - with defensive programming
@@ -95,7 +95,7 @@ const ReportHistory = () => {
     let compareResult = 0;
     
     if (sortBy === 'date') {
-      compareResult = new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+      compareResult = new Date(a.created_at || a.createdAt || 0) - new Date(b.created_at || b.createdAt || 0);
     } else if (sortBy === 'name') {
       compareResult = (a.title || '').localeCompare(b.title || '');
     } else if (sortBy === 'format') {
@@ -234,10 +234,10 @@ const ReportHistory = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(report.createdAt)}
+                        {formatDate(report.created_at || report.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatFileSize(report.fileSize)}
+                        {formatFileSize(report.file_size || report.fileSize)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-3">
@@ -248,8 +248,9 @@ const ReportHistory = () => {
                             View
                           </button>
                           <button
-                            onClick={() => handleDownload(report.downloadUrl, report.filename)}
+                            onClick={() => handleDownload(report)}
                             className="text-green-600 hover:text-green-900"
+                            disabled={report.status !== 'completed'}
                           >
                             Download
                           </button>
@@ -343,15 +344,15 @@ const ReportHistory = () => {
                       {viewReport.format?.toUpperCase()}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Created: {formatDate(viewReport.createdAt)}
+                      Created: {formatDate(viewReport.created_at || viewReport.createdAt)}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                      Size: {formatFileSize(viewReport.fileSize)}
+                      Size: {formatFileSize(viewReport.file_size || viewReport.fileSize)}
                     </span>
                   </div>
                 </div>
                 <button
-                  onClick={() => handleDownload(viewReport.downloadUrl, viewReport.filename)}
+                  onClick={() => handleDownload(viewReport)}
                   className="btn btn-primary flex items-center"
                 >
                   <svg className="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">

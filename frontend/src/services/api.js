@@ -1,104 +1,162 @@
 import axios from 'axios';
 
-// Create axios instance with base URL
 const api = axios.create({
-  baseURL: process.env.NODE_ENV === 'development'
-    ? 'http://localhost:8000/api'
-    : '/api'.replace(/\/$/, ''),
-  withCredentials: true, // Important for handling CORS and cookies
+  baseURL:
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_BASE_URL) ||
+    '/api',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 30000, // 30 second timeout
+  timeout: 30000,
 });
 
-// Add a request interceptor to include auth token
+const TOKEN_KEY = 'token';
+const REFRESH_KEY = 'refresh_token';
+
+export const getStoredToken = () =>
+  localStorage.getItem(TOKEN_KEY) || sessionStorage.getItem(TOKEN_KEY);
+
+export const getStoredRefreshToken = () =>
+  localStorage.getItem(REFRESH_KEY) || sessionStorage.getItem(REFRESH_KEY);
+
+export const storeTokens = (access, refresh, rememberMe = true) => {
+  const primary = rememberMe ? localStorage : sessionStorage;
+  const secondary = rememberMe ? sessionStorage : localStorage;
+  primary.setItem(TOKEN_KEY, access);
+  if (refresh) {
+    primary.setItem(REFRESH_KEY, refresh);
+  }
+  secondary.removeItem(TOKEN_KEY);
+  secondary.removeItem(REFRESH_KEY);
+};
+
+export const clearTokens = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(REFRESH_KEY);
+};
+
+const isAuthEndpoint = (url = '') =>
+  url.includes('/auth/login') ||
+  url.includes('/auth/admin-login') ||
+  url.includes('/auth/agency-login') ||
+  url.includes('/auth/register') ||
+  url.includes('/auth/token/refresh') ||
+  url.includes('/auth/password-reset');
+
+let isRefreshing = false;
+let refreshQueue = [];
+
+const processQueue = (error, token = null) => {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) {
+      reject(error);
+    } else {
+      resolve(token);
+    }
+  });
+  refreshQueue = [];
+};
+
 api.interceptors.request.use(
   (config) => {
-    // Get the token from localStorage or sessionStorage
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-
-    // If token exists and is not a "null" or "undefined" string, add it to request headers
+    const token = getStoredToken();
     if (token && token !== 'null' && token !== 'undefined') {
       config.headers.Authorization = `Bearer ${token}`;
     }
-
-    // Log request in development
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('API Request:', {
-        method: config.method?.toUpperCase(),
-        url: config.url,
-        data: config.data,
-        headers: config.headers
-      });
-    }
-
     return config;
   },
-  (error) => {
-    console.error('Request interceptor error:', error);
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Add a response interceptor to handle token expiration
 api.interceptors.response.use(
-  (response) => {
-    // Log response in development
-    if (process.env.NODE_ENV === 'development') {
-      console.debug('API Response:', {
-        status: response.status,
-        url: response.config.url,
-        data: response.data
-      });
-    }
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config || {};
+    const status = error.response?.status;
 
-    return response;
-  },
-  (error) => {
-    // Handle 401 Unauthorized errors (token expired)
-    if (error.response && error.response.status === 401) {
-      console.warn('Token expired, redirecting to login');
-
-      // Clear the token
-      localStorage.removeItem('token');
-      localStorage.removeItem('refresh_token');
-      sessionStorage.removeItem('token');
-      sessionStorage.removeItem('refresh_token');
-
-      // Redirect to login page
-      window.location.href = '/login';
+    // Never retry rate limits — retries make 429 worse
+    if (status === 429) {
+      error.formattedMessage =
+        error.response?.data?.message ||
+        'Too many requests — wait a moment and try again.';
       return Promise.reject(error);
     }
 
-    // Handle 403 Forbidden errors
-    if (error.response && error.response.status === 403) {
-      console.warn('Access forbidden');
-      // Could redirect to unauthorized page or show message
+    // Retry once on empty/network drops (common during Django auto-reload)
+    const isNetworkDrop =
+      !error.response &&
+      (error.code === 'ERR_NETWORK' ||
+        error.message === 'Network Error' ||
+        error.code === 'ECONNABORTED');
+    if (isNetworkDrop && !originalRequest._networkRetry) {
+      originalRequest._networkRetry = true;
+      await new Promise((r) => setTimeout(r, 600));
+      return api(originalRequest);
     }
 
-    // Handle 500 Server errors
-    if (error.response && error.response.status >= 500) {
-      console.error('Server error:', error.response.data);
+    if (
+      status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint(originalRequest.url || '')
+    ) {
+      const refreshToken = getStoredRefreshToken();
+      if (!refreshToken) {
+        clearTokens();
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(error);
+      }
+
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const { data } = await axios.post(
+          `${api.defaults.baseURL}/auth/token/refresh/`,
+          { refresh: refreshToken },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const access = data.access;
+        const newRefresh = data.refresh || refreshToken;
+        const useLocal = Boolean(localStorage.getItem(REFRESH_KEY));
+        storeTokens(access, newRefresh, useLocal);
+
+        processQueue(null, access);
+        originalRequest.headers.Authorization = `Bearer ${access}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        clearTokens();
+        if (!window.location.pathname.includes('/login')) {
+          window.location.href = '/login';
+        }
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
 
-    // Format error message
-    const errorMessage = error.response?.data?.message ||
+    const errorMessage =
+      error.response?.data?.message ||
       error.response?.data?.detail ||
       error.message ||
       'An error occurred';
 
-    // Enhance error object with formatted message
     error.formattedMessage = errorMessage;
-
-    // Log error details
-    console.error('API Error:', {
-      status: error.response?.status,
-      message: errorMessage,
-      url: error.config?.url,
-      data: error.response?.data
-    });
-
     return Promise.reject(error);
   }
 );

@@ -126,18 +126,19 @@ export const agencyRegister = async (agencyData) => {
 
 /**
  * Logout user
- * 
- * @returns {Promise<void>}
+ *
+ * @returns {Promise<boolean>}
  */
 export const logoutUser = async () => {
   try {
-    const refreshToken = localStorage.getItem('refresh_token');
-    
+    const refreshToken =
+      localStorage.getItem('refresh_token') ||
+      sessionStorage.getItem('refresh_token');
+
     if (!refreshToken) {
-      console.error('No refresh token found');
       return false;
     }
-    
+
     await api.post('/auth/logout/', { refresh: refreshToken });
     return true;
   } catch (error) {
@@ -187,7 +188,7 @@ export const updateUserProfile = async (userData) => {
 
 /**
  * Change user password
- * 
+ *
  * @param {string} currentPassword - Current password
  * @param {string} newPassword - New password
  * @returns {Promise<Object>} Success message
@@ -195,8 +196,9 @@ export const updateUserProfile = async (userData) => {
 export const changePassword = async (currentPassword, newPassword) => {
   try {
     const response = await api.post('/auth/change-password/', {
-      current_password: currentPassword,
+      old_password: currentPassword,
       new_password: newPassword,
+      confirm_new_password: newPassword,
     });
     return response.data;
   } catch (error) {
@@ -210,13 +212,13 @@ export const changePassword = async (currentPassword, newPassword) => {
 
 /**
  * Request password reset
- * 
- * @param {string} username - User username
+ *
+ * @param {string} email - User email
  * @returns {Promise<Object>} Success message
  */
-export const requestPasswordReset = async (username) => {
+export const requestPasswordReset = async (email) => {
   try {
-    const response = await api.post('/auth/password-reset/', { username });
+    const response = await api.post('/auth/password-reset-request/', { email });
     return response.data;
   } catch (error) {
     if (error.response) {
@@ -229,23 +231,31 @@ export const requestPasswordReset = async (username) => {
 
 /**
  * Confirm password reset
- * 
+ *
  * @param {string} token - Reset token
- * @param {string} username - User username
+ * @param {string} email - User email
  * @param {string} password - New password
  * @returns {Promise<Object>} Success message
  */
-export const confirmPasswordReset = async (token, username, password) => {
+export const confirmPasswordReset = async (token, email, password) => {
   try {
-    const response = await api.post('/auth/password-reset/confirm/', {
+    const response = await api.post('/auth/password-reset-confirm/', {
       token,
-      username,
-      password,
+      email,
+      new_password: password,
+      confirm_new_password: password,
     });
     return response.data;
   } catch (error) {
     if (error.response) {
-      throw new Error(error.response.data?.detail || 'Failed to reset password');
+      const data = error.response.data;
+      const message =
+        data?.detail ||
+        data?.token?.[0] ||
+        data?.email?.[0] ||
+        data?.new_password?.[0] ||
+        'Failed to reset password';
+      throw new Error(message);
     } else {
       throw new Error(error.message || 'Failed to reset password');
     }

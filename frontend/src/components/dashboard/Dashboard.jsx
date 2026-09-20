@@ -1,9 +1,168 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import CrimeStats from './CrimeStats';
 import CrimeTrends from './CrimeTrends';
 import Card from '../common/Card';
+import Loader from '../common/Loader';
+import { getCrimeStats, getCrimes } from '../../services/crimeService';
+import { getCurrentHotspots } from '../../services/crimeService';
+import { getAlerts } from '../../services/alertService';
+import { getReportHistory } from '../../services/reportService';
+
+/** UI value → API time_frame (must match backend crimes.views.stats/trends). */
+const TIME_FRAME_MAP = {
+  last24Hours: 'last24Hours',
+  lastWeek: 'last7Days',
+  lastMonth: 'last30Days',
+  lastYear: 'lastYear',
+  allTime: 'allTime',
+};
+
+const pctChange = (current, previous) => {
+  if (previous == null || previous === 0) {
+    return current > 0 ? 100 : 0;
+  }
+  return Number((((current - previous) / previous) * 100).toFixed(1));
+};
 
 const Dashboard = () => {
+  const [timeFrame, setTimeFrame] = useState('allTime');
+  const [stats, setStats] = useState(null);
+  const [hotspotCount, setHotspotCount] = useState(0);
+  const [alertCount, setAlertCount] = useState(0);
+  const [reportCount, setReportCount] = useState(0);
+  const [recentCrimes, setRecentCrimes] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [refreshKey, setRefreshKey] = useState(0);
+
+  const apiTimeFrame = TIME_FRAME_MAP[timeFrame] || 'allTime';
+
+  const loadDashboard = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    const results = await Promise.allSettled([
+      getCrimeStats({ time_frame: apiTimeFrame }),
+      getCrimes({ page: 1, limit: 8 }),
+      getCurrentHotspots(),
+      getAlerts(),
+      getReportHistory(),
+    ]);
+
+    const [statsResult, crimesResult, hotspotsResult, alertsResult, reportsResult] =
+      results;
+
+    if (statsResult.status === 'fulfilled') {
+      setStats(statsResult.value);
+    } else {
+      console.error('Dashboard stats failed:', statsResult.reason);
+      setError(statsResult.reason?.message || 'Failed to load crime statistics');
+    }
+
+    if (crimesResult.status === 'fulfilled') {
+      setRecentCrimes(crimesResult.value?.results || []);
+    }
+
+    if (hotspotsResult.status === 'fulfilled') {
+      const hotspots = hotspotsResult.value;
+      const hotspotList = Array.isArray(hotspots)
+        ? hotspots
+        : hotspots?.results || hotspots?.features || [];
+      setHotspotCount(hotspotList.length);
+    } else {
+      setHotspotCount(0);
+    }
+
+    if (alertsResult.status === 'fulfilled') {
+      const alerts = alertsResult.value;
+      const alertList = Array.isArray(alerts) ? alerts : alerts?.results || [];
+      setAlertCount(alertList.filter((a) => a.is_active !== false).length);
+    } else {
+      setAlertCount(0);
+    }
+
+    if (reportsResult.status === 'fulfilled') {
+      const reports = reportsResult.value;
+      const reportList = Array.isArray(reports)
+        ? reports
+        : reports?.results || [];
+      setReportCount(reportList.length);
+    } else {
+      setReportCount(0);
+    }
+
+    setIsLoading(false);
+  }, [apiTimeFrame]);
+
+  useEffect(() => {
+    loadDashboard();
+  }, [loadDashboard, refreshKey]);
+
+  const kpiCards = useMemo(() => {
+    const total = stats?.total_crimes ?? 0;
+    const prevTotal = stats?.previous_total_crimes ?? 0;
+    const totalDelta = pctChange(total, prevTotal);
+    const violent = stats?.violent_crimes ?? 0;
+
+    return [
+      {
+        key: 'total',
+        label: 'Total Crimes',
+        value: total.toLocaleString(),
+        delta: apiTimeFrame === 'allTime' ? null : totalDelta,
+        tone: totalDelta <= 0 ? 'green' : 'red',
+        caption:
+          apiTimeFrame === 'allTime'
+            ? stats?.as_of
+              ? `all records through ${stats.as_of}`
+              : 'all records in database'
+            : 'vs prior period',
+        iconBg: 'bg-blue-100 text-blue-600',
+      },
+      {
+        key: 'hotspots',
+        label: 'Active Hotspots',
+        value: hotspotCount.toLocaleString(),
+        delta: null,
+        tone: 'red',
+        caption: `${violent.toLocaleString()} violent in period`,
+        iconBg: 'bg-red-100 text-red-600',
+      },
+      {
+        key: 'alerts',
+        label: 'Active Alerts',
+        value: alertCount.toLocaleString(),
+        delta: null,
+        tone: 'yellow',
+        caption: 'your alert rules',
+        iconBg: 'bg-yellow-100 text-yellow-600',
+      },
+      {
+        key: 'reports',
+        label: 'Saved Reports',
+        value: reportCount.toLocaleString(),
+        delta: null,
+        tone: 'green',
+        caption: 'in your history',
+        iconBg: 'bg-green-100 text-green-600',
+      },
+    ];
+  }, [stats, hotspotCount, alertCount, reportCount, apiTimeFrame]);
+
+  const handleExport = () => {
+    if (!stats) return;
+    const blob = new Blob([JSON.stringify(stats, null, 2)], {
+      type: 'application/json',
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crime-stats-${apiTimeFrame}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between md:items-center">
@@ -11,7 +170,8 @@ const Dashboard = () => {
         <div className="mt-2 md:mt-0 flex space-x-2">
           <select
             className="block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
-            defaultValue="lastMonth"
+            value={timeFrame}
+            onChange={(e) => setTimeFrame(e.target.value)}
           >
             <option value="last24Hours">Last 24 Hours</option>
             <option value="lastWeek">Last Week</option>
@@ -22,274 +182,95 @@ const Dashboard = () => {
           <button
             type="button"
             className="btn btn-primary flex items-center"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={isLoading}
           >
-            <svg
-              className="h-5 w-5 mr-2"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-              />
-            </svg>
             Refresh
           </button>
           <button
             type="button"
             className="btn btn-secondary flex items-center"
+            onClick={handleExport}
+            disabled={!stats}
           >
-            <svg
-              className="h-5 w-5 mr-2"
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-              />
-            </svg>
             Export
           </button>
         </div>
       </div>
 
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+          {error}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        <Card className="lg:col-span-1">
-          <div className="p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-md bg-blue-100 text-blue-600">
-                <svg
-                  className="h-8 w-8"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
-                  />
-                </svg>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Total Crimes
-                  </dt>
-                  <dd>
-                    <div className="text-lg font-semibold text-gray-900">
-                      12,361
-                    </div>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-green-600 flex items-center">
-                  <svg
-                    className="self-center flex-shrink-0 h-5 w-5 text-green-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span className="ml-1">3.2% decrease</span>
+        {kpiCards.map((card) => (
+          <Card key={card.key} className="lg:col-span-1">
+            <div className="p-6">
+              <div className="flex items-center">
+                <div className={`flex-shrink-0 p-3 rounded-md ${card.iconBg}`}>
+                  <div className="h-8 w-8 flex items-center justify-center font-bold">
+                    {card.key === 'total' ? 'Σ' : card.key[0].toUpperCase()}
+                  </div>
                 </div>
-                <div className="text-sm text-gray-500">from last month</div>
-              </div>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="lg:col-span-1">
-          <div className="p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-md bg-red-100 text-red-600">
-                <svg
-                  className="h-8 w-8"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    High Risk Areas
-                  </dt>
-                  <dd>
-                    <div className="text-lg font-semibold text-gray-900">8</div>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-red-600 flex items-center">
-                  <svg
-                    className="self-center flex-shrink-0 h-5 w-5 text-red-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span className="ml-1">2 new areas</span>
+                <div className="ml-5 w-0 flex-1">
+                  <dl>
+                    <dt className="text-sm font-medium text-gray-500 truncate">
+                      {card.label}
+                    </dt>
+                    <dd>
+                      <div className="text-lg font-semibold text-gray-900">
+                        {isLoading ? '—' : card.value}
+                      </div>
+                    </dd>
+                  </dl>
                 </div>
-                <div className="text-sm text-gray-500">from last month</div>
               </div>
-            </div>
-          </div>
-        </Card>
-        
-        <Card className="lg:col-span-1">
-          <div className="p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-md bg-yellow-100 text-yellow-600">
-                <svg
-                  className="h-8 w-8"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Active Alerts
-                  </dt>
-                  <dd>
-                    <div className="text-lg font-semibold text-gray-900">24</div>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-yellow-600 flex items-center">
-                  <svg
-                    className="self-center flex-shrink-0 h-5 w-5 text-yellow-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span className="ml-1">8 new alerts</span>
+              <div className="mt-4">
+                <div className="flex items-center justify-between text-sm">
+                  {card.delta != null ? (
+                    <span
+                      className={
+                        card.tone === 'green' ? 'text-green-600' : 'text-red-600'
+                      }
+                    >
+                      {card.delta > 0 ? '+' : ''}
+                      {card.delta}%
+                    </span>
+                  ) : (
+                    <span className="text-gray-500">{card.caption}</span>
+                  )}
+                  {card.delta != null && (
+                    <span className="text-gray-500">{card.caption}</span>
+                  )}
                 </div>
-                <div className="text-sm text-gray-500">from last week</div>
               </div>
             </div>
-          </div>
-        </Card>
-        
-        <Card className="lg:col-span-1">
-          <div className="p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 p-3 rounded-md bg-green-100 text-green-600">
-                <svg
-                  className="h-8 w-8"
-                  xmlns="http://www.w3.org/2000/svg"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                  />
-                </svg>
-              </div>
-              <div className="ml-5 w-0 flex-1">
-                <dl>
-                  <dt className="text-sm font-medium text-gray-500 truncate">
-                    Generated Reports
-                  </dt>
-                  <dd>
-                    <div className="text-lg font-semibold text-gray-900">138</div>
-                  </dd>
-                </dl>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="flex items-center justify-between">
-                <div className="text-sm text-green-600 flex items-center">
-                  <svg
-                    className="self-center flex-shrink-0 h-5 w-5 text-green-500"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
-                    aria-hidden="true"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span className="ml-1">12% increase</span>
-                </div>
-                <div className="text-sm text-gray-500">from last month</div>
-              </div>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Crime Statistics by Type</h2>
-            <CrimeStats />
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Crime Statistics by Type
+            </h2>
+            <CrimeStats
+              timeFrame={apiTimeFrame}
+              refreshKey={refreshKey}
+              initialStats={stats}
+            />
           </div>
         </Card>
 
         <Card>
           <div className="p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Crime Trends Over Time</h2>
-            <CrimeTrends />
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+              Crime Trends Over Time
+            </h2>
+            <CrimeTrends timeFrame={apiTimeFrame} refreshKey={refreshKey} />
           </div>
         </Card>
       </div>
@@ -297,127 +278,90 @@ const Dashboard = () => {
       <Card>
         <div className="p-6">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">Recent Crime Reports</h2>
-            <a href="#" className="text-sm font-medium text-blue-600 hover:text-blue-500">
-              View all
-            </a>
+            <h2 className="text-lg font-semibold text-gray-900">
+              Recent Crime Reports
+            </h2>
+            <Link
+              to="/map"
+              className="text-sm font-medium text-blue-600 hover:text-blue-500"
+            >
+              View map
+            </Link>
           </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Date & Time
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Crime Type
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Location
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Status
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                  >
-                    Action
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {[
-                  {
-                    id: 1,
-                    date: '2023-05-07T18:30:00',
-                    type: 'Theft',
-                    location: '123 Main St, Block 500',
-                    status: 'Reported',
-                  },
-                  {
-                    id: 2,
-                    date: '2023-05-06T14:15:00',
-                    type: 'Assault',
-                    location: '456 Oak Ave, Block 300',
-                    status: 'Under Investigation',
-                  },
-                  {
-                    id: 3,
-                    date: '2023-05-05T20:45:00',
-                    type: 'Burglary',
-                    location: '789 Pine St, Block 200',
-                    status: 'Closed',
-                  },
-                  {
-                    id: 4,
-                    date: '2023-05-05T10:20:00',
-                    type: 'Vandalism',
-                    location: '101 Maple Dr, Block 400',
-                    status: 'Reported',
-                  },
-                  {
-                    id: 5,
-                    date: '2023-05-04T16:10:00',
-                    type: 'Robbery',
-                    location: '202 Cedar Ln, Block 100',
-                    status: 'Under Investigation',
-                  },
-                ].map((crime) => (
-                  <tr key={crime.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {new Date(crime.date).toLocaleString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {crime.type}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {crime.location}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span
-                        className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          crime.status === 'Reported'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : crime.status === 'Under Investigation'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-green-100 text-green-800'
-                        }`}
-                      >
-                        {crime.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <a
-                        href="#"
-                        className="text-blue-600 hover:text-blue-900 mr-3"
-                      >
-                        View
-                      </a>
-                      <a
-                        href="#"
-                        className="text-blue-600 hover:text-blue-900"
-                      >
-                        Map
-                      </a>
-                    </td>
+          {isLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Date
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Crime Type
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Location
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Case
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Action
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {recentCrimes.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={5}
+                        className="px-6 py-8 text-center text-sm text-gray-500"
+                      >
+                        No recent crimes found. Seed data or adjust filters.
+                      </td>
+                    </tr>
+                  ) : (
+                    recentCrimes.map((crime) => (
+                      <tr key={crime.id}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {crime.date
+                            ? new Date(
+                                `${crime.date}${crime.time ? `T${crime.time}` : ''}`
+                              ).toLocaleString()
+                            : '—'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {crime.type || 'Unknown'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {crime.block_address || crime.district || '—'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {crime.case_number || crime.id}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <Link
+                            to={
+                              crime.latitude != null && crime.longitude != null
+                                ? `/map?lat=${crime.latitude}&lng=${crime.longitude}&zoom=15`
+                                : '/map'
+                            }
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            Map
+                          </Link>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </Card>
     </div>

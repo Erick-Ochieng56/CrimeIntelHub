@@ -13,8 +13,8 @@ router.register('reports', views.ReportViewSet, basename='report')
 router.register('templates', views.ReportTemplateViewSet, basename='template')
 router.register('scheduled', views.ScheduledReportViewSet, basename='scheduled')
 router.register('analyses', views.SavedAnalysisViewSet, basename='analysis')
+router.register('sections', views.ReportSectionViewSet, basename='section')
 
 urlpatterns = [
     path('', include(router.urls)),
-    # For future custom non-ViewSet endpoints
 ]

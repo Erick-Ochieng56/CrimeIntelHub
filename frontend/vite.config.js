@@ -5,9 +5,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    host: '0.0.0.0', // Listen on all  
-    port: 5000, // Use port 5000 since it's what Replit exposes
-    strictPort: true, // Don't try another port if 5000 is taken
+    host: '0.0.0.0',
+    // Match docker-compose frontend port; avoid clashing with OSRM on 5000
+    port: 3000,
+    strictPort: true,
 
     cors: {
       origin: '*',

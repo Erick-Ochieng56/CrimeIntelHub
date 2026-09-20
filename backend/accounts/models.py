@@ -185,6 +185,23 @@ class PasswordResetToken(models.Model):
     def __str__(self):
         return f"Reset token for {self.user.username}"
 
+    @classmethod
+    def create_for_user(cls, user, ip_address=None, user_agent='', hours_valid=24):
+        """Create a one-time reset token for the given user."""
+        import secrets
+        from datetime import timedelta
+
+        # Invalidate unused tokens for this user
+        cls.objects.filter(user=user, used=False).update(used=True)
+
+        return cls.objects.create(
+            user=user,
+            token=secrets.token_urlsafe(32),
+            expires_at=timezone.now() + timedelta(hours=hours_valid),
+            ip_address=ip_address,
+            user_agent=(user_agent or '')[:500],
+        )
+
     @property
     def is_expired(self):
         """Check if the token has expired."""

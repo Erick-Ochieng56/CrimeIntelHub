@@ -1,0 +1,51 @@
+# Python envs & caches (main cause of huge build context)
+venv/
+.venv/
+env/
+ENV/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Local secrets & env (Compose injects runtime env)
+.env
+.env.*
+!.env.example
+
+# Django runtime artifacts
+media/
+staticfiles/
+logs/
+*.log
+db.sqlite3
+*.sqlite3
+
+# Large data / exports / ML artifacts (optional in image; mount or download later)
+*.pkl
+*.joblib
+crime_data_export.json
+# Keep trained models out of build context unless explicitly copied
+ml_models/
+
+
+# Git / IDE / OS
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Docs / misc
+README.md
+*.md

@@ -22,14 +22,14 @@ const ReportTemplate = () => {
   });
   
   const crimeTypes = [
-    { value: 'THEFT', label: 'Theft' },
-    { value: 'ASSAULT', label: 'Assault' },
-    { value: 'BURGLARY', label: 'Burglary' },
+    { value: 'HOMICIDE', label: 'Homicide' },
     { value: 'ROBBERY', label: 'Robbery' },
-    { value: 'VANDALISM', label: 'Vandalism' },
-    { value: 'DRUG', label: 'Drug Offenses' },
-    { value: 'FRAUD', label: 'Fraud' },
-    { value: 'OTHER', label: 'Other' },
+    { value: 'BREAKINGS', label: 'Breakings' },
+    { value: 'STEALING', label: 'Stealing' },
+    { value: 'THEFT_OF_VEHICLE', label: 'Theft of Vehicles' },
+    { value: 'DANGEROUS_DRUGS', label: 'Dangerous Drugs' },
+    { value: 'CRIMINAL_DAMAGE', label: 'Criminal Damage' },
+    { value: 'ECONOMIC', label: 'Economic Crimes' },
   ];
   
   const reportFormats = [

@@ -43,8 +43,7 @@ class ErrorBoundary extends React.Component {
       id: errorId
     });
 
-    // In production, you could send this to an error reporting service
-    // this.logErrorToService(error, errorInfo, errorId);
+    this.logErrorToService(error, errorInfo, errorId);
   }
 
   logErrorToService = (error, errorInfo, errorId) => {

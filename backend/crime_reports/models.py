@@ -81,7 +81,7 @@ class Report(models.Model):
     def get_file_url(self):
         """Get the URL for downloading the report file."""
         if self.file_path and self.status == 'completed':
-            return f"/api/reports/{self.id}/download/"
+            return f"/api/reports/reports/{self.id}/download/"
         return None
 
 

@@ -26,20 +26,33 @@ const CRIME_COLORS = {
 const NeighborhoodSummaryMarker = ({ summary }) => {
   const { centroid, total_count, violent_count, neighborhood_name, district_name, categories } = summary;
 
-  if (!centroid || !centroid.coordinates || centroid.coordinates.length < 2) {
+  let lat;
+  let lng;
+  if (centroid?.coordinates && centroid.coordinates.length >= 2) {
+    lng = centroid.coordinates[0];
+    lat = centroid.coordinates[1];
+  } else if (centroid?.latitude != null && centroid?.longitude != null) {
+    lat = centroid.latitude;
+    lng = centroid.longitude;
+  } else if (summary.latitude != null && summary.longitude != null) {
+    lat = summary.latitude;
+    lng = summary.longitude;
+  }
+
+  if (lat == null || lng == null) {
     console.warn(`Invalid centroid for ${neighborhood_name}`);
     return null;
   }
 
   // Calculate marker radius based on total_count (logarithmic scale for better visualization)
-  const radius = Math.max(5, Math.log(total_count + 1) * 3);
+  const radius = Math.max(5, Math.log((total_count || 0) + 1) * 3);
 
   // Determine color based on violent crime proportion
-  const color = violent_count / total_count > 0.5 ? '#FF0000' : '#1E90FF';
+  const color = total_count > 0 && violent_count / total_count > 0.5 ? '#FF0000' : '#1E90FF';
 
   return (
     <CircleMarker
-      center={[centroid.coordinates[1], centroid.coordinates[0]]}
+      center={[lat, lng]}
       radius={radius}
       color={color}
       fillOpacity={0.5}

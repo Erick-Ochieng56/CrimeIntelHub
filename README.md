@@ -17,12 +17,49 @@ A comprehensive full-stack platform for crime data analysis, visualization, and 
 
 ## 🚀 Quick Start
 
+### GIS on Windows / Mac / Linux (recommended)
+
+**Do not install GDAL on Windows.** Local and production use the same Linux Docker image with PostGIS + GDAL.
+
+```bash
+# From repo root (Docker Desktop required)
+docker compose up --build
+```
+
+- Frontend: http://localhost:3000  
+- API: http://localhost:8000  
+- Health: http://localhost:8000/health/  
+- Swagger: http://localhost:8000/swagger/  
+
+On Windows you can also run `scripts\dev-up.cmd`.
+
+Env defaults live in `.env` (repo root) and `backend/.env`. Change `SECRET_KEY` and DB passwords before any real deployment.
+
+### Optional: map routing (OSRM)
+
+Self-hosted OSRM. Not started by default. Default extract is **Nairobi metro** (low-RAM; works with ~2 GB Docker memory). Full Kenya needs **≥4 GB** Docker RAM for `osrm-extract`.
+
+```bash
+# 1) Prepare extract (default: Nairobi metro clip)
+./scripts/download-osrm-kenya.sh          # or: ./scripts/download-osrm-kenya.sh kenya
+
+# 2) Build graph + serve
+docker compose --profile routing up -d osrm
+
+# Check readiness (Nairobi sample)
+curl -s "http://localhost:5000/route/v1/driving/36.82,-1.29;36.80,-1.28?overview=false"
+```
+
+The map UI calls Django `GET /api/maps/route/` (proxies to `OSRM_URL`). Without the profile, Directions shows **Routing unavailable**.
+
+Basemap: **Streets** (OSM), **Satellite** / **Hybrid** (Esri World Imagery + optional CARTO/OSM labels).
+
 ### Prerequisites
 
 - Docker and Docker Compose
-- Node.js 18+ and npm
-- Python 3.11+
-- GDAL libraries (for GIS functionality)
+- Node.js 18+ and npm (only if you run the frontend on the host)
+- Python 3.11+ (only if you run Django on the host — not recommended on Windows because of GDAL)
+- GDAL libraries (only for bare-metal Linux; **not needed** when using Docker)
 
 ### Option 1: Docker Compose (Recommended)
 
@@ -35,18 +72,17 @@ A comprehensive full-stack platform for crime data analysis, visualization, and 
 2. **Set up environment variables**
    ```bash
    cp backend/env.example backend/.env
-   # Edit backend/.env with your configuration
+   # Edit backend/.env with your configuration (optional for local Docker defaults)
    ```
 
 3. **Start all services**
    ```bash
-   docker-compose up -d
+   docker compose up --build
    ```
 
-4. **Initialize the database**
+4. **Create a superuser (optional)**
    ```bash
-   docker-compose exec backend python manage.py migrate
-   docker-compose exec backend python manage.py createsuperuser
+   docker compose exec backend python manage.py createsuperuser
    ```
 
 5. **Access the application**

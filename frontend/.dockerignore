@@ -1,0 +1,34 @@
+# Dependencies & build output (main cause of huge build context)
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+coverage/
+*.tgz
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+# Logs & caches
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+*.log
+
+# Git / IDE / OS
+.git/
+.gitignore
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db
+
+# Docs
+README.md
+*.md
