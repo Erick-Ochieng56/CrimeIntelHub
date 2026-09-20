@@ -37,27 +37,32 @@ Env defaults live in `.env` (repo root) and `backend/.env`. Change `SECRET_KEY` 
 
 ### Custom domain (Cloudflare)
 
-For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` nginx profile:
+For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` nginx profile with **Full (strict)** TLS:
 
 1. **DNS** — Cloudflare A record `crime` → Oracle VM public IP (proxied / orange cloud OK).
-2. **SSL** — Cloudflare SSL/TLS mode **Flexible** (HTTPS at the edge; origin nginx listens on `:80` only).
-3. **Firewall** — Open OCI security list / NSG and UFW for ports **80** and **443**.
-4. **Env on the VM** — In root `.env` set (Compose passes these into the backend container):
+2. **Origin certificate** — Cloudflare → **SSL/TLS** → **Origin Server** → **Create certificate** for `crime.erickochieng.co.ke` (optionally `*.erickochieng.co.ke`). Save on the VM as:
+   - `deploy/certs/origin.pem` (certificate)
+   - `deploy/certs/origin.key` (private key)  
+   See `deploy/certs/README.md`. Do not commit these files. (Alternative: Let’s Encrypt — same paths or update `ssl_certificate*` in `deploy/nginx.conf`.)
+3. **SSL mode** — Cloudflare → **SSL/TLS** → **Overview** → **Full (strict)** (edge HTTPS → origin HTTPS with a trusted Origin CA / public cert).
+4. **Firewall** — Open OCI security list / NSG and UFW for ports **80** and **443** (80 redirects to HTTPS; ACME if you switch to Let’s Encrypt).
+5. **Env on the VM** — In root `.env` set (Compose passes these into the backend container):
    - `ALLOWED_HOSTS` including `crime.erickochieng.co.ke`
    - `FRONTEND_URL=https://crime.erickochieng.co.ke`
    - `CORS_ALLOWED_ORIGINS=https://crime.erickochieng.co.ke`
    - `CSRF_TRUSTED_ORIGINS=https://crime.erickochieng.co.ke`
-   - `TRUST_X_FORWARDED_PROTO=true` — required for correct HTTPS detection behind Flexible SSL, but only safe when traffic is Cloudflare-proxied / the origin is locked (do not enable if `:80` is open to the world without CF)
+   - `TRUST_X_FORWARDED_PROTO=true` — required for correct HTTPS detection behind Cloudflare; only safe when traffic is Cloudflare-proxied / the origin is locked (do not enable if `:80`/`:443` are open to the world without CF)
    - `VITE_API_BASE_URL=https://crime.erickochieng.co.ke/api`
-5. **Start** — `docker compose --profile production up -d`
-6. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
+6. **Start** — `docker compose --profile production up -d` (recreate nginx after placing certs: `docker compose --profile production up -d --force-recreate nginx`)
+7. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
    `docker compose --profile production up -d --build frontend`
 
 - Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, `CSRF_TRUSTED_ORIGINS`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
-- Cloudflare sets/overwrites `X-Forwarded-Proto` by default; keep SSL mode **Flexible** (or Full later). With `TRUST_X_FORWARDED_PROTO=true`, Django trusts that header via `SECURE_PROXY_SSL_HEADER` — do not expose origin `:80` to the public internet if possible (prefer Cloudflare-only / OCI locked to Cloudflare IP ranges) so clients cannot spoof it by hitting the VM directly.
-- The nginx `_` catch-all is intentional for IP/localhost health checks; lock down the OCI security list to Cloudflare (or close direct `:80` from `0.0.0.0/0`) if you want to shrink that surface.
+- Cloudflare sets/overwrites `X-Forwarded-Proto` by default. With `TRUST_X_FORWARDED_PROTO=true`, Django trusts that header via `SECURE_PROXY_SSL_HEADER` — prefer Cloudflare-only / OCI locked to Cloudflare IP ranges so clients cannot spoof it by hitting the VM directly.
+- The nginx `_` catch-all is intentional for IP/localhost health checks; lock down the OCI security list to Cloudflare if you want to shrink that surface.
+- **Optional quick-start:** Cloudflare **Flexible** (HTTPS only at the edge, HTTP to origin) can work temporarily without origin certs, but prefer **Full (strict)** for production.
 
-See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke _` (named host plus catch-all for IP/localhost probes).
+See `.env.example` for commented domain values. `deploy/nginx.conf` listens on `:80` (redirect) and `:443` (TLS) with `server_name crime.erickochieng.co.ke _`.
 
 ### Optional: map routing (OSRM)
 
