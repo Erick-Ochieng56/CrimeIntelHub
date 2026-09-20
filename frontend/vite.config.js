@@ -9,6 +9,10 @@ export default defineConfig({
     // Match docker-compose frontend port; avoid clashing with OSRM on 5000
     port: 3000,
     strictPort: true,
+    allowedHosts: [
+      'crime.erickochieng.co.ke',
+      '.erickochieng.co.ke',
+    ],
 
     cors: {
       origin: '*',
