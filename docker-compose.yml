@@ -6,8 +6,8 @@
 
 services:
   db:
-    # Multi-arch (amd64 + arm64); official postgis/postgis is amd64-only
     image: imresamu/postgis:16-3.4-bookworm
+    platform: linux/arm64
     environment:
       POSTGRES_DB: ${DB_NAME:-crime_analysis_db}
       POSTGRES_USER: ${DB_USER:-crime_analysis_user}
