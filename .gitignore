@@ -3,3 +3,4 @@ data/osrm/
 *.pyc
 __pycache__/
 .venv-osrm/
+cert.txt
