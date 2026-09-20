@@ -35,6 +35,24 @@ On Windows you can also run `scripts\dev-up.cmd`.
 
 Env defaults live in `.env` (repo root) and `backend/.env`. Change `SECRET_KEY` and DB passwords before any real deployment.
 
+### Custom domain (Cloudflare)
+
+For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` nginx profile:
+
+1. **DNS** — Cloudflare A record `crime` → Oracle VM public IP (proxied / orange cloud OK).
+2. **SSL** — Cloudflare SSL/TLS mode **Flexible** (HTTPS at the edge; origin nginx listens on `:80` only).
+3. **Firewall** — Open OCI security list / NSG and UFW for ports **80** and **443**.
+4. **Env on the VM** — In root `.env` set:
+   - `ALLOWED_HOSTS` including `crime.erickochieng.co.ke`
+   - `FRONTEND_URL=https://crime.erickochieng.co.ke`
+   - `CORS_ALLOWED_ORIGINS=https://crime.erickochieng.co.ke`
+   - `VITE_API_BASE_URL=https://crime.erickochieng.co.ke/api`
+5. **Start** — `docker compose --profile production up -d`
+6. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
+   `docker compose --profile production up -d --build frontend`
+
+See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke`.
+
 ### Optional: map routing (OSRM)
 
 Self-hosted OSRM. Not started by default. Default extract is **Nairobi metro** (low-RAM; works with ~2 GB Docker memory). Full Kenya needs **≥4 GB** Docker RAM for `osrm-extract`.
