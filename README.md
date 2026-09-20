@@ -51,7 +51,9 @@ For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` ngin
 6. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
    `docker compose --profile production up -d --build frontend`
 
-See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke`.
+- Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
+
+See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke _` (named host plus catch-all for IP/localhost probes).
 
 ### Optional: map routing (OSRM)
 
