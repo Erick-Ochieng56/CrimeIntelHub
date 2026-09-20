@@ -267,12 +267,20 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Behind Cloudflare Flexible / nginx: trust X-Forwarded-Proto from the reverse proxy
-# so request.is_secure(), secure cookies, and CSRF behave correctly over HTTPS at the edge.
-# Safe only when clients cannot hit the origin directly (prefer Cloudflare-only / OCI locked
-# to Cloudflare IP ranges); otherwise a client could spoof the header. See README.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
+# Behind Cloudflare Flexible / nginx: opt-in trust of X-Forwarded-Proto so
+# request.is_secure(), secure cookies, and CSRF behave correctly over HTTPS at the edge.
+# Enable only when clients cannot hit the origin directly (prefer Cloudflare-only / OCI
+# locked to Cloudflare IP ranges); otherwise a client could spoof the header. See README.
+_TRUST_X_FORWARDED_PROTO = os.environ.get('TRUST_X_FORWARDED_PROTO', '').strip().lower() in (
+    'true',
+    '1',
+    'yes',
+)
+if _TRUST_X_FORWARDED_PROTO:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+else:
+    USE_X_FORWARDED_HOST = False
 
 # Email settings
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')

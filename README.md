@@ -46,13 +46,15 @@ For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` ngin
    - `ALLOWED_HOSTS` including `crime.erickochieng.co.ke`
    - `FRONTEND_URL=https://crime.erickochieng.co.ke`
    - `CORS_ALLOWED_ORIGINS=https://crime.erickochieng.co.ke`
+   - `CSRF_TRUSTED_ORIGINS=https://crime.erickochieng.co.ke`
+   - `TRUST_X_FORWARDED_PROTO=true` — required for correct HTTPS detection behind Flexible SSL, but only safe when traffic is Cloudflare-proxied / the origin is locked (do not enable if `:80` is open to the world without CF)
    - `VITE_API_BASE_URL=https://crime.erickochieng.co.ke/api`
 5. **Start** — `docker compose --profile production up -d`
 6. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
    `docker compose --profile production up -d --build frontend`
 
-- Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
-- Cloudflare sets/overwrites `X-Forwarded-Proto` by default; keep SSL mode **Flexible** (or Full later). Do not expose origin `:80` to the public internet if possible (prefer Cloudflare-only / OCI locked to Cloudflare IP ranges) so clients cannot spoof that header by hitting the VM directly — Django trusts it via `SECURE_PROXY_SSL_HEADER`.
+- Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, `CSRF_TRUSTED_ORIGINS`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
+- Cloudflare sets/overwrites `X-Forwarded-Proto` by default; keep SSL mode **Flexible** (or Full later). With `TRUST_X_FORWARDED_PROTO=true`, Django trusts that header via `SECURE_PROXY_SSL_HEADER` — do not expose origin `:80` to the public internet if possible (prefer Cloudflare-only / OCI locked to Cloudflare IP ranges) so clients cannot spoof it by hitting the VM directly.
 - The nginx `_` catch-all is intentional for IP/localhost health checks; lock down the OCI security list to Cloudflare (or close direct `:80` from `0.0.0.0/0`) if you want to shrink that surface.
 
 See `.env.example` for commented domain values. `deploy/nginx.conf` uses `server_name crime.erickochieng.co.ke _` (named host plus catch-all for IP/localhost probes).
