@@ -2,6 +2,7 @@
 Django settings for crime_analysis project.
 """
 
+import logging
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -267,12 +268,20 @@ SECURE_HSTS_SECONDS = 31536000 if not DEBUG else 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
 
-# Behind Cloudflare Flexible / nginx: trust X-Forwarded-Proto from the reverse proxy
-# so request.is_secure(), secure cookies, and CSRF behave correctly over HTTPS at the edge.
-# Safe only when clients cannot hit the origin directly (prefer Cloudflare-only / OCI locked
-# to Cloudflare IP ranges); otherwise a client could spoof the header. See README.
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
-USE_X_FORWARDED_HOST = True
+# Behind Cloudflare Flexible / nginx: opt-in trust of X-Forwarded-Proto so
+# request.is_secure(), secure cookies, and CSRF behave correctly over HTTPS at the edge.
+# Enable only when clients cannot hit the origin directly (prefer Cloudflare-only / OCI
+# locked to Cloudflare IP ranges); otherwise a client could spoof the header. See README.
+_TRUST_X_FORWARDED_PROTO = os.environ.get('TRUST_X_FORWARDED_PROTO', '').strip().lower() in (
+    'true',
+    '1',
+    'yes',
+)
+if _TRUST_X_FORWARDED_PROTO:
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    USE_X_FORWARDED_HOST = True
+else:
+    USE_X_FORWARDED_HOST = False
 
 # Email settings
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
@@ -280,6 +289,15 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@crimespace.or
 
 # Frontend URL for password reset links etc.
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+if (
+    not DEBUG
+    and FRONTEND_URL.startswith('https://')
+    and not _TRUST_X_FORWARDED_PROTO
+):
+    logging.getLogger(__name__).warning(
+        'HTTPS FRONTEND_URL without TRUST_X_FORWARDED_PROTO may break cookies/CSRF behind a reverse proxy'
+    )
 
 # CSRF trusted origins — explicit env list, or derive from https FRONTEND_URL
 _csrf_trusted = [
