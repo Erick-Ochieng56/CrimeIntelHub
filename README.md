@@ -42,7 +42,7 @@ For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` ngin
 1. **DNS** — Cloudflare A record `crime` → Oracle VM public IP (proxied / orange cloud OK).
 2. **SSL** — Cloudflare SSL/TLS mode **Flexible** (HTTPS at the edge; origin nginx listens on `:80` only).
 3. **Firewall** — Open OCI security list / NSG and UFW for ports **80** and **443**.
-4. **Env on the VM** — In root `.env` set:
+4. **Env on the VM** — In root `.env` set (Compose passes these into the backend container):
    - `ALLOWED_HOSTS` including `crime.erickochieng.co.ke`
    - `FRONTEND_URL=https://crime.erickochieng.co.ke`
    - `CORS_ALLOWED_ORIGINS=https://crime.erickochieng.co.ke`

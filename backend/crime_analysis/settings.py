@@ -2,6 +2,7 @@
 Django settings for crime_analysis project.
 """
 
+import logging
 import os
 from pathlib import Path
 from datetime import timedelta
@@ -288,6 +289,15 @@ DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@crimespace.or
 
 # Frontend URL for password reset links etc.
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
+
+if (
+    not DEBUG
+    and FRONTEND_URL.startswith('https://')
+    and not _TRUST_X_FORWARDED_PROTO
+):
+    logging.getLogger(__name__).warning(
+        'HTTPS FRONTEND_URL without TRUST_X_FORWARDED_PROTO may break cookies/CSRF behind a reverse proxy'
+    )
 
 # CSRF trusted origins — explicit env list, or derive from https FRONTEND_URL
 _csrf_trusted = [

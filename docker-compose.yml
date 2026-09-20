@@ -50,6 +50,9 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,backend}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      # Opt-in; empty default. Set in root .env for Cloudflare/proxy HTTPS deploys.
+      TRUST_X_FORWARDED_PROTO: ${TRUST_X_FORWARDED_PROTO:-}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
       # Self-hosted OSRM (compose profile `routing`); proxy returns 503 if down
       OSRM_URL: ${OSRM_URL:-http://osrm:5000}
       # Empty = use system libs inside the image (no Windows paths)
