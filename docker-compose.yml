@@ -6,7 +6,8 @@
 
 services:
   db:
-    image: postgis/postgis:15-3.3
+    # Multi-arch (amd64 + arm64); official postgis/postgis is amd64-only
+    image: imresamu/postgis:16-3.4-bookworm
     environment:
       POSTGRES_DB: ${DB_NAME:-crime_analysis_db}
       POSTGRES_USER: ${DB_USER:-crime_analysis_user}
@@ -44,6 +45,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-crime_analysis_password}
       DB_HOST: db
       DB_PORT: "5432"
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
       REDIS_URL: redis://redis:6379/0
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000}
       ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,backend}

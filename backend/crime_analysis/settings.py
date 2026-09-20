@@ -118,7 +118,7 @@ DATABASES = {
         'HOST': DB_HOST,
         'PORT': DB_PORT or '5432',
         'OPTIONS': {
-            'sslmode': 'require' if not DEBUG else 'disable',
+            'sslmode': os.environ.get('DB_SSLMODE', 'disable'),
         },
         'CONN_MAX_AGE': 600,  # Connection pooling: 10 minutes
         'CONN_HEALTH_CHECKS': True,
