@@ -1,21 +1,47 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GeoJSON } from 'react-leaflet';
+import { Circle, GeoJSON, Popup } from 'react-leaflet';
 import {
   colorForCount,
   normalizeCountyName,
 } from '../../utils/mapScale';
+
 const GEO_URL = '/geo/kenya-counties.geojson';
 
 let cachedGeo = null;
 let cachedPromise = null;
 
+const featureCountyName = (feature) => {
+  const p = feature?.properties || {};
+  return (
+    p.name ||
+    p.county_name ||
+    p.NAME_1 ||
+    p.COUNTY_NAM ||
+    p.shapeName ||
+    p.shapename ||
+    null
+  );
+};
+
 const loadKenyaCounties = () => {
   if (cachedGeo) return Promise.resolve(cachedGeo);
   if (cachedPromise) return cachedPromise;
   cachedPromise = fetch(GEO_URL)
-    .then((r) => {
+    .then(async (r) => {
       if (!r.ok) throw new Error(`Failed to load county boundaries (${r.status})`);
-      return r.json();
+      const ctype = (r.headers.get('content-type') || '').toLowerCase();
+      // Vite SPA fallback serves index.html with 200 for missing static files
+      if (ctype.includes('text/html')) {
+        throw new Error('County boundaries missing (got HTML instead of GeoJSON)');
+      }
+      const data = await r.json();
+      if (!data || data.type !== 'FeatureCollection' || !Array.isArray(data.features)) {
+        throw new Error('Invalid county GeoJSON');
+      }
+      if (!data.features.length) {
+        throw new Error('County GeoJSON has no features');
+      }
+      return data;
     })
     .then((data) => {
       cachedGeo = data;
@@ -30,6 +56,7 @@ const loadKenyaCounties = () => {
 
 /**
  * National zoom: county choropleth joined to viewport district aggregates.
+ * Falls back to density circles if boundaries fail to load.
  */
 const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
   const [geo, setGeo] = useState(cachedGeo);
@@ -46,7 +73,13 @@ const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
     aggregates.forEach((agg) => {
       const key = normalizeCountyName(agg.name);
       if (!key) return;
-      const prev = mapCounts.get(key) || { count: 0, violent_count: 0, lat: agg.lat, lng: agg.lng, name: agg.name };
+      const prev = mapCounts.get(key) || {
+        count: 0,
+        violent_count: 0,
+        lat: agg.lat,
+        lng: agg.lng,
+        name: agg.name,
+      };
       mapCounts.set(key, {
         ...prev,
         count: prev.count + (agg.count || 0),
@@ -63,7 +96,10 @@ const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
     let cancelled = false;
     loadKenyaCounties()
       .then((data) => {
-        if (!cancelled) setGeo(data);
+        if (!cancelled) {
+          setLoadError(null);
+          setGeo(data);
+        }
       })
       .catch((err) => {
         if (!cancelled) setLoadError(err.message || 'Boundary load failed');
@@ -74,7 +110,7 @@ const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
   }, []);
 
   const styleFeature = (feature) => {
-    const key = normalizeCountyName(feature?.properties?.name);
+    const key = normalizeCountyName(featureCountyName(feature));
     const stats = countByName.get(key);
     const count = stats?.count || 0;
     return {
@@ -87,9 +123,9 @@ const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
   };
 
   const onEachFeature = (feature, layer) => {
-    const key = normalizeCountyName(feature?.properties?.name);
+    const label = featureCountyName(feature) || 'County';
+    const key = normalizeCountyName(label);
     const stats = countByName.get(key);
-    const label = feature?.properties?.name || 'County';
     const count = stats?.count || 0;
     const violent = stats?.violent_count || 0;
 
@@ -149,12 +185,44 @@ const CountyChoropleth = ({ aggregates = [], onCountyClick }) => {
     [maxCount, aggregates.length, countByName]
   );
 
-  if (loadError) {
+  // Still loading boundaries
+  if (!geo && !loadError) {
     return null;
   }
 
-  if (!geo) {
-    return null;
+  // Fallback: show density circles so national zoom is never blank
+  if (loadError || !geo) {
+    return (
+      <>
+        {aggregates.map((agg) => {
+          if (agg.lat == null || agg.lng == null) return null;
+          const fill = colorForCount(agg.count || 0, maxCount);
+          return (
+            <Circle
+              key={`fallback-${agg.id}`}
+              center={[agg.lat, agg.lng]}
+              radius={28000 + Math.sqrt(Math.max(agg.count || 1, 1)) * 4500}
+              pathOptions={{
+                color: '#7f1d1d',
+                fillColor: fill,
+                fillOpacity: 0.55,
+                weight: 1.2,
+              }}
+              eventHandlers={{
+                click: () => onCountyClick?.(agg),
+              }}
+            >
+              <Popup>
+                <div className="text-sm">
+                  <div className="font-semibold">{agg.name || 'County'}</div>
+                  <p>{(agg.count || 0).toLocaleString()} crimes</p>
+                </div>
+              </Popup>
+            </Circle>
+          );
+        })}
+      </>
+    );
   }
 
   return (

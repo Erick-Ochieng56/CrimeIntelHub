@@ -13,8 +13,8 @@ import { neighborTileParams, viewportTileKey } from '../utils/mapTiles';
 export const crimeQueryKeys = {
   crimes: (params) => ['crimes', params],
   viewport: (params) => ['map-viewport', viewportTileKey(params), params],
-  summaries: ['crime-summaries'],
-  exported: ['exported-summary'],
+  summaries: (params) => ['crime-summaries', params],
+  exported: (params) => ['exported-summary', params],
   hotspots: ['hotspots'],
   trends: (params) => ['crime-trends', params],
   heatmap: (params) => ['crime-heatmap', params],
@@ -49,10 +49,10 @@ export const useMapViewport = (params, options = {}) => {
   });
 };
 
-export const useCrimeSummaries = (options = {}) => {
+export const useCrimeSummaries = (params = {}, options = {}) => {
   return useQuery({
-    queryKey: crimeQueryKeys.summaries,
-    queryFn: getCrimeSummaries,
+    queryKey: crimeQueryKeys.summaries(params),
+    queryFn: () => getCrimeSummaries({ ...params, hierarchical: true }),
     staleTime: 1000 * 60 * 5,
     refetchOnWindowFocus: false,
     enabled: false,
@@ -60,10 +60,10 @@ export const useCrimeSummaries = (options = {}) => {
   });
 };
 
-export const useExportedCrimeSummary = (options = {}) => {
+export const useExportedCrimeSummary = (params = {}, options = {}) => {
   return useQuery({
-    queryKey: crimeQueryKeys.exported,
-    queryFn: getExportedCrimeSummary,
+    queryKey: crimeQueryKeys.exported(params),
+    queryFn: () => getExportedCrimeSummary(params),
     staleTime: 1000 * 60 * 10,
     refetchOnWindowFocus: false,
     enabled: false,

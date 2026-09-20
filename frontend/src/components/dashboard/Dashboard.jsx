@@ -345,14 +345,18 @@ const Dashboard = () => {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <Link
-                            to="/map"
+                            to={
+                              crime.latitude != null && crime.longitude != null
+                                ? `/map?lat=${crime.latitude}&lng=${crime.longitude}&zoom=15`
+                                : '/map'
+                            }
                             className="text-blue-600 hover:text-blue-900"
                           >
                             Map
                           </Link>
                         </td>
                       </tr>
-                    ))}
+                    ))
                   )}
                 </tbody>
               </table>

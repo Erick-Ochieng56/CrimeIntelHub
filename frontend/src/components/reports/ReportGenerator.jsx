@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { generateReport } from '../../services/reportService';
+import React, { useState, useEffect } from 'react';
+import { generateReport, downloadReportFile } from '../../services/reportService';
+import api from '../../services/api';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
 import DatePicker from 'react-datepicker';
@@ -32,6 +33,17 @@ const LocationMarker = ({ position, setPosition }) => {
   return position ? <Marker position={position} icon={defaultIcon} /> : null;
 };
 
+const FALLBACK_CRIME_TYPES = [
+  { value: 'HOMICIDE', label: 'Homicide', id: null },
+  { value: 'ROBBERY', label: 'Robbery', id: null },
+  { value: 'BREAKINGS', label: 'Breakings', id: null },
+  { value: 'STEALING', label: 'Stealing', id: null },
+  { value: 'THEFT_OF_VEHICLE', label: 'Theft of Vehicles', id: null },
+  { value: 'DANGEROUS_DRUGS', label: 'Dangerous Drugs', id: null },
+  { value: 'CRIMINAL_DAMAGE', label: 'Criminal Damage', id: null },
+  { value: 'ECONOMIC', label: 'Economic Crimes', id: null },
+];
+
 const ReportGenerator = () => {
   const [reportParams, setReportParams] = useState({
     title: '',
@@ -57,19 +69,37 @@ const ReportGenerator = () => {
   const [position, setPosition] = useState(null);
   const [mapCenter, setMapCenter] = useState([40.7128, -74.0060]); // Default: NYC
   const [generatedReport, setGeneratedReport] = useState(null);
+  const [crimeTypes, setCrimeTypes] = useState(FALLBACK_CRIME_TYPES);
   
   const { position: userPosition } = useGeolocation();
-  
-  const crimeTypes = [
-    { value: 'THEFT', label: 'Theft' },
-    { value: 'ASSAULT', label: 'Assault' },
-    { value: 'BURGLARY', label: 'Burglary' },
-    { value: 'ROBBERY', label: 'Robbery' },
-    { value: 'VANDALISM', label: 'Vandalism' },
-    { value: 'DRUG', label: 'Drug Offenses' },
-    { value: 'FRAUD', label: 'Fraud' },
-    { value: 'OTHER', label: 'Other' },
-  ];
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await api.get('/crimes/categories/', { params: { page_size: 200 } });
+        const rows = Array.isArray(response.data)
+          ? response.data
+          : response.data?.results || [];
+        if (!cancelled && rows.length) {
+          setCrimeTypes(
+            rows.map((cat) => ({
+              value: String(cat.name || '')
+                .toUpperCase()
+                .replace(/\s+/g, '_'),
+              label: cat.name,
+              id: cat.id,
+            }))
+          );
+        }
+      } catch {
+        /* keep fallback labels */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   const reportFormats = [
     { value: 'pdf', label: 'PDF Document' },
@@ -88,11 +118,11 @@ const ReportGenerator = () => {
   // Update reportParams with position changes
   React.useEffect(() => {
     if (position) {
-      setReportParams({
-        ...reportParams,
+      setReportParams((prev) => ({
+        ...prev,
         latitude: position[0],
         longitude: position[1]
-      });
+      }));
     }
   }, [position]);
   
@@ -181,12 +211,19 @@ const ReportGenerator = () => {
       setError(null);
       setSuccess(null);
       setGeneratedReport(null);
+
+      // Prefer category IDs when available from the checkbox list
+      const selectedIds = crimeTypes
+        .filter((ct) => reportParams.crimeTypes.includes(ct.value) && ct.id != null)
+        .map((ct) => ct.id);
+      const payload = {
+        ...reportParams,
+        crimeTypes: selectedIds.length ? selectedIds : reportParams.crimeTypes,
+      };
       
-      const result = await generateReport(reportParams);
+      const result = await generateReport(payload);
       setGeneratedReport(result);
       setSuccess('Report generated successfully');
-      
-      // Additional actions like download would be here
     } catch (err) {
       console.error('Error generating report:', err);
       setError(err.message || 'Failed to generate report. Please try again.');
@@ -195,16 +232,14 @@ const ReportGenerator = () => {
     }
   };
   
-  const handleDownload = () => {
-    if (!generatedReport?.downloadUrl) return;
-    
-    // Create a link element and trigger download
-    const link = document.createElement('a');
-    link.href = generatedReport.downloadUrl;
-    link.download = generatedReport.filename || `crime_report_${new Date().toISOString().split('T')[0]}.${reportParams.format}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownload = async () => {
+    if (!generatedReport?.id) return;
+    try {
+      await downloadReportFile(generatedReport);
+    } catch (err) {
+      console.error('Download failed:', err);
+      setError(err.message || 'Failed to download report');
+    }
   };
   
   return (
@@ -579,7 +614,7 @@ const ReportGenerator = () => {
                       {reportParams.format.toUpperCase()}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      {generatedReport.totalCrimes} crimes
+                      {(generatedReport.status || 'pending').toString()}
                     </span>
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
                       {reportParams.radius}km radius

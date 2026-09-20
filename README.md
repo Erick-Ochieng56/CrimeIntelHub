@@ -35,6 +35,25 @@ On Windows you can also run `scripts\dev-up.cmd`.
 
 Env defaults live in `.env` (repo root) and `backend/.env`. Change `SECRET_KEY` and DB passwords before any real deployment.
 
+### Optional: map routing (OSRM)
+
+Self-hosted OSRM. Not started by default. Default extract is **Nairobi metro** (low-RAM; works with ~2 GB Docker memory). Full Kenya needs **≥4 GB** Docker RAM for `osrm-extract`.
+
+```bash
+# 1) Prepare extract (default: Nairobi metro clip)
+./scripts/download-osrm-kenya.sh          # or: ./scripts/download-osrm-kenya.sh kenya
+
+# 2) Build graph + serve
+docker compose --profile routing up -d osrm
+
+# Check readiness (Nairobi sample)
+curl -s "http://localhost:5000/route/v1/driving/36.82,-1.29;36.80,-1.28?overview=false"
+```
+
+The map UI calls Django `GET /api/maps/route/` (proxies to `OSRM_URL`). Without the profile, Directions shows **Routing unavailable**.
+
+Basemap: **Streets** (OSM), **Satellite** / **Hybrid** (Esri World Imagery + optional CARTO/OSM labels).
+
 ### Prerequisites
 
 - Docker and Docker Compose

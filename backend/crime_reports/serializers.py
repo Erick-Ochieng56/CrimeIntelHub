@@ -4,23 +4,41 @@ from crimes.models import CrimeCategory, District, Neighborhood
 from django.utils import timezone
 
 
+class FlexibleCrimeCategoryField(serializers.Field):
+    """Accept category PKs and/or name labels; store as CrimeCategory instances."""
+
+    def to_representation(self, value):
+        if hasattr(value, 'all'):
+            return [cat.id for cat in value.all()]
+        return [getattr(v, 'id', v) for v in (value or [])]
+
+    def to_internal_value(self, data):
+        from .generation import resolve_crime_category_ids
+
+        if data is None:
+            return []
+        if not isinstance(data, (list, tuple)):
+            data = [data]
+        ids = resolve_crime_category_ids(data)
+        return list(CrimeCategory.objects.filter(id__in=ids))
+
+
 class ReportTemplateSerializer(serializers.ModelSerializer):
     """Serializer for the ReportTemplate model."""
     
     class Meta:
         model = ReportTemplate
-        fields = ('id', 'name', 'description', 'report_type', 'is_default')
-        read_only_fields = ('id', 'template_file', 'created_at', 'updated_at')
+        fields = (
+            'id', 'name', 'description', 'report_type', 'template_data',
+            'is_default', 'is_public', 'created_at', 'updated_at',
+        )
+        read_only_fields = ('id', 'created_at', 'updated_at')
 
 
 class ReportSerializer(serializers.ModelSerializer):
     """Serializer for the Report model."""
     
-    crime_types = serializers.PrimaryKeyRelatedField(
-        queryset=CrimeCategory.objects.all(),
-        many=True,
-        required=False
-    )
+    crime_types = FlexibleCrimeCategoryField(required=False)
     districts = serializers.PrimaryKeyRelatedField(
         queryset=District.objects.all(),
         many=True,
@@ -44,9 +62,11 @@ class ReportSerializer(serializers.ModelSerializer):
         model = Report
         fields = (
             'id', 'title', 'description', 'report_type', 'report_type_display',
-             'crime_types', 'crime_types_names', 'districts', 
+            'start_date', 'end_date', 'radius',
+            'crime_types', 'crime_types_names', 'districts',
             'districts_names', 'neighborhoods', 'neighborhoods_names',
-            'include_charts', 'include_map', 'format', 'format_display',
+            'include_summary', 'include_charts', 'include_map',
+            'include_recommendations', 'format', 'format_display',
             'status', 'status_display', 'progress', 'error_message',
             'file_path', 'file_size', 'download_url',
             'created_at', 'updated_at', 'completed_at'
@@ -55,25 +75,47 @@ class ReportSerializer(serializers.ModelSerializer):
             'id', 'user', 'status', 'progress', 'error_message',
             'file_path', 'file_size', 'created_at', 'updated_at', 'completed_at'
         )
-    
+
     def create(self, validated_data):
+        from .generation import generate_report_sync
+
         crime_types = validated_data.pop('crime_types', [])
         districts = validated_data.pop('districts', [])
         neighborhoods = validated_data.pop('neighborhoods', [])
-        
+
         validated_data['user'] = self.context['request'].user
         report = Report.objects.create(**validated_data)
-        
+
         if crime_types:
             report.crime_types.set(crime_types)
-        
+
         if districts:
             report.districts.set(districts)
-        
+
         if neighborhoods:
             report.neighborhoods.set(neighborhoods)
-        
+
+        # Synchronously generate so create returns a usable completed report
+        try:
+            generate_report_sync(report)
+        except Exception:
+            # Report row kept with failed status; still return it
+            pass
+        report.refresh_from_db()
         return report
+
+    def validate(self, attrs):
+        if self.instance is None:
+            if not attrs.get('start_date') or not attrs.get('end_date'):
+                raise serializers.ValidationError({
+                    'start_date': 'start_date and end_date are required to create a report.',
+                    'end_date': 'start_date and end_date are required to create a report.',
+                })
+            if attrs['start_date'] > attrs['end_date']:
+                raise serializers.ValidationError({
+                    'end_date': 'end_date must be on or after start_date.',
+                })
+        return attrs
     
     def get_crime_types_names(self, obj):
         return [ct.name for ct in obj.crime_types.all()]
@@ -160,7 +202,7 @@ class ScheduledReportSerializer(serializers.ModelSerializer):
     """Serializer for the ScheduledReport model."""
     
     frequency_display = serializers.CharField(source='get_frequency_display', read_only=True)
-    report_title = serializers.CharField(source='report_template.title', read_only=True)
+    report_title = serializers.CharField(source='report_template.name', read_only=True)
     
     class Meta:
         model = ScheduledReport

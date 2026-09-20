@@ -32,6 +32,8 @@ urlpatterns = [
     path('heatmap/', views.CrimeViewSet.as_view({'get': 'heatmap'}), name='crime-heatmap'),
     path('search/', views.CrimeViewSet.as_view({'post': 'search'}), name='crime-search'),
     path('download_summary/', views.CrimeViewSet.as_view({'get': 'download_summary'}), name='crime-download-summary'),
+    path('neighborhood_summary/', views.CrimeViewSet.as_view({'get': 'neighborhood_summary'}), name='crime-neighborhood-summary'),
+    path('exported_summary/', views.get_exported_crime_summary, name='crime-exported-summary'),
     path('map_data/', views.CrimeViewSet.as_view({'get': 'map_data'}), name='crime-map-data'),
     path('viewport/', views.CrimeViewSet.as_view({'get': 'viewport'}), name='crime-viewport'),
     # Primary crime CRUD at /api/crimes/ and /api/crimes/<pk>/

@@ -11,9 +11,15 @@ from drf_yasg import openapi
 from django.http import HttpResponse, JsonResponse
 from django.db import connection
 from django.core.cache import cache
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 import redis
 import time
+import json
+import logging
 from crimes.views import CrimeViewSet
+
+error_logger = logging.getLogger('frontend_errors')
 
 # Swagger/OpenAPI documentation setup
 schema_view = get_schema_view(
@@ -204,6 +210,31 @@ def home_page(request):
     """
     return HttpResponse(html)
 
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def log_frontend_error(request):
+    """Simple endpoint for frontend ErrorBoundary / client error logging."""
+    try:
+        payload = json.loads(request.body.decode('utf-8') or '{}')
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        payload = {'raw': request.body.decode('utf-8', errors='replace')[:2000]}
+
+    error_logger.warning(
+        'Frontend error: %s',
+        payload.get('message') or payload.get('errorId') or 'unknown',
+        extra={'frontend_error': payload},
+    )
+    # Also write a concise line to default logger
+    logging.getLogger(__name__).warning(
+        'frontend_error id=%s url=%s msg=%s',
+        payload.get('errorId'),
+        payload.get('url'),
+        (payload.get('message') or '')[:500],
+    )
+    return JsonResponse({'status': 'ok'})
+
+
 urlpatterns = [
     # Home page
     path('', home_page, name='home'),
@@ -228,6 +259,7 @@ urlpatterns = [
     path('api/reports/', include('crime_reports.urls', namespace='crime_reports')),
     path('api/etl/', include('crime_etl.urls', namespace='crime_etl')),
     path('api/maps/', include('maps.urls', namespace='maps')),
+    path('api/errors/log', log_frontend_error, name='frontend-error-log'),
     
     # API authentication
     path('api-auth/', include('rest_framework.urls')),

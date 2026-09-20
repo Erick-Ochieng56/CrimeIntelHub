@@ -106,7 +106,7 @@ class CrimePredictionViewSet(viewsets.ReadOnlyModelViewSet):
                 predictions_qs = predictions_qs.filter(crime_type__name__iexact=crime_type)
             if location:
                 predictions_qs = predictions_qs.filter(
-                    location__distance_lte=(location, D(km=5))
+                    location__dwithin=(location, D(km=5))
                 )
 
             serializer = self.get_serializer(predictions_qs, many=True)

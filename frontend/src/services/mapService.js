@@ -136,6 +136,88 @@ export const getMapLayers = async () => {
   }
 };
 
+const parseOsrmRoute = (data) => {
+  const leg = data?.routes?.[0];
+  if (!leg?.geometry?.coordinates?.length) {
+    throw new Error('No route found');
+  }
+  // GeoJSON [lng, lat] → Leaflet [lat, lng]
+  const coordinates = leg.geometry.coordinates.map(([lng, lat]) => [lat, lng]);
+  return {
+    coordinates,
+    distanceM: leg.distance,
+    durationS: leg.duration,
+  };
+};
+
+/**
+ * Driving route via Django → OSRM proxy (avoids CORS).
+ * Falls back to VITE_OSRM_URL / localhost:5000 if the proxy is unreachable.
+ *
+ * @param {{ lat: number, lng: number }} from
+ * @param {{ lat: number, lng: number }} to
+ * @returns {Promise<{ coordinates: number[][], distanceM: number, durationS: number }>}
+ */
+export const getDrivingRoute = async (from, to) => {
+  if (
+    from?.lat == null ||
+    from?.lng == null ||
+    to?.lat == null ||
+    to?.lng == null
+  ) {
+    throw new Error('Origin and destination are required');
+  }
+
+  const params = {
+    origin: `${from.lat},${from.lng}`,
+    destination: `${to.lat},${to.lng}`,
+  };
+
+  try {
+    const response = await api.get('/maps/route/', { params, timeout: 20000 });
+    if (response.data?.error) {
+      throw new Error(response.data.error);
+    }
+    return parseOsrmRoute(response.data);
+  } catch (proxyError) {
+    const status = proxyError?.response?.status;
+    const msg =
+      proxyError?.response?.data?.error ||
+      proxyError?.formattedMessage ||
+      proxyError?.message;
+
+    const osrmBase =
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_OSRM_URL) ||
+      'http://localhost:5000';
+
+    // On proxy 503 / unavailable, still try direct OSRM when VITE_OSRM_URL is set
+    const shouldTryDirect =
+      status === 503 ||
+      /routing unavailable/i.test(String(msg)) ||
+      !proxyError?.response;
+
+    if (shouldTryDirect && osrmBase) {
+      const coords = `${from.lng},${from.lat};${to.lng},${to.lat}`;
+      try {
+        const url = `${osrmBase.replace(/\/$/, '')}/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('Routing unavailable');
+        const data = await res.json();
+        if (data.code && data.code !== 'Ok') throw new Error('Routing unavailable');
+        return parseOsrmRoute(data);
+      } catch {
+        throw new Error(
+          msg && !/network|timeout|ECONNREFUSED/i.test(msg)
+            ? msg
+            : 'Routing unavailable'
+        );
+      }
+    }
+
+    throw new Error(msg || 'Routing unavailable');
+  }
+};
+
 /**
  * Get crime clusters for map display
  */

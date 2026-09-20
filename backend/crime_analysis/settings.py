@@ -217,8 +217,16 @@ SIMPLE_JWT = {
 
 # CORS settings - Secure configuration
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
-CORS_ALLOWED_ORIGIN_REGEXES = os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',') if os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES') else []
+CORS_ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get('CORS_ALLOWED_ORIGINS', '').split(',')
+    if origin.strip()
+]
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    regex.strip()
+    for regex in os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES', '').split(',')
+    if regex.strip()
+] if os.environ.get('CORS_ALLOWED_ORIGIN_REGEXES') else []
 
 if DEBUG:
     CORS_ALLOWED_ORIGINS.extend([
@@ -227,6 +235,8 @@ if DEBUG:
         'http://localhost:5000',
         'http://127.0.0.1:5000',
     ])
+# Deduplicate while preserving order
+CORS_ALLOWED_ORIGINS = list(dict.fromkeys(CORS_ALLOWED_ORIGINS))
 
 CORS_ALLOW_METHODS = [
     'DELETE',

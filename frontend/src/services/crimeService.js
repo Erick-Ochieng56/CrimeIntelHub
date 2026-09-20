@@ -25,6 +25,14 @@ const extractCoordinates = (crime) => {
     }
   }
 
+  // Heatmap / exported points often use top-level lat/lng
+  if (latitude === undefined && crime.lat !== undefined) {
+    latitude = crime.lat;
+  }
+  if (longitude === undefined && crime.lng !== undefined) {
+    longitude = crime.lng;
+  }
+
   if (latitude === undefined && crime.latitude !== undefined) {
     latitude = crime.latitude;
   }
@@ -180,6 +188,7 @@ export const getMapViewport = async (params = {}) => {
         mode,
         zoom: response.data.zoom,
         count: response.data.count,
+        truncated: Boolean(response.data.truncated),
         results: raw.map(transformCrime),
       };
     }
@@ -188,6 +197,7 @@ export const getMapViewport = async (params = {}) => {
       mode,
       zoom: response.data.zoom,
       count: response.data.count,
+      truncated: Boolean(response.data.truncated),
       results: raw,
     };
   } catch (error) {
@@ -196,25 +206,73 @@ export const getMapViewport = async (params = {}) => {
   }
 };
 
-// Fetch neighborhood summaries
+// Fetch neighborhood summaries (hierarchical → flat markers)
 export const getCrimeSummaries = async (params = {}) => {
   try {
     const requestParams = {
-      start_date: params.start_date,
-      end_date: params.end_date,
-      crimeTypes: params.crimeTypes?.join(','),
-      hierarchical: params.hierarchical ? 'true' : 'false',
+      start_date: params.start_date || params.startDate,
+      end_date: params.end_date || params.endDate,
+      crimeTypes: Array.isArray(params.crimeTypes)
+        ? params.crimeTypes.join(',')
+        : params.crimeTypes,
+      hierarchical: 'true',
       lat: params.lat,
       lng: params.lng,
-      radius: params.radius || 5,
+      radius: params.radius,
     };
+
+    Object.keys(requestParams).forEach((key) => {
+      if (requestParams[key] === undefined || requestParams[key] === '') {
+        delete requestParams[key];
+      }
+    });
 
     const response = await api.get('crimes/download_summary/', {
       params: requestParams,
       responseType: 'json',
     });
 
-    return response.data;
+    const data = response.data || {};
+    const results = [];
+
+    if (Array.isArray(data.districts)) {
+      for (const district of data.districts) {
+        for (const n of district.neighborhoods || []) {
+          const summary = n.crime_summary || {};
+          const centroid = summary.centroid || {};
+          const lat = centroid.latitude;
+          const lng = centroid.longitude;
+          if (lat == null || lng == null) continue;
+
+          results.push({
+            neighborhood_id: n.neighborhood_id,
+            neighborhood_name: n.neighborhood_name,
+            district_name: district.district_name,
+            total_count: summary.total_count || 0,
+            violent_count: summary.violent_count || 0,
+            property_damage: summary.property_damage || 0,
+            categories: summary.categories || [],
+            // GeoJSON-style for NeighborhoodSummaryMarker + lat/lng convenience
+            centroid: {
+              latitude: lat,
+              longitude: lng,
+              coordinates: [lng, lat],
+            },
+            latitude: lat,
+            longitude: lng,
+          });
+        }
+      }
+    } else if (Array.isArray(data.results)) {
+      results.push(...data.results);
+    }
+
+    return {
+      results,
+      date_range: data.date_range,
+      hierarchical: true,
+      count: results.length,
+    };
   } catch (error) {
     console.error('Error fetching crime summaries:', error);
     throw new Error(error.response?.data?.detail || 'Failed to fetch crime summaries');
@@ -238,28 +296,106 @@ export const getCrimeHeatmap = async (params = {}) => {
   }
 };
 
-// Fetch crime summary for mapping (e.g., exported summary data)
+// Fetch crime summary for mapping (prefer file-based export, fall back to live heatmap)
 export const getExportedCrimeSummary = async (params = {}) => {
+  const apiParams = {
+    days: params.days || 30,
+    start_date: params.startDate || params.start_date,
+    end_date: params.endDate || params.end_date,
+    crime_types: Array.isArray(params.crimeTypes)
+      ? params.crimeTypes.join(',')
+      : params.crimeTypes,
+    lat: params.lat,
+    lng: params.lng,
+    radius: params.radius,
+    zoom: params.zoom,
+    bounds: params.bounds?.join(','),
+  };
+
+  Object.keys(apiParams).forEach((key) => {
+    if (apiParams[key] === undefined || apiParams[key] === '') {
+      delete apiParams[key];
+    }
+  });
+
+  const toHeatPoints = (items) =>
+    (items || [])
+      .map((item) => {
+        const { latitude, longitude } = extractCoordinates(item);
+        const lat = latitude ?? item.lat;
+        const lng = longitude ?? item.lng;
+        if (lat == null || lng == null) return null;
+        return {
+          lat: Number(lat),
+          lng: Number(lng),
+          intensity: Number(item.intensity || item.count || item.total_count || 1),
+        };
+      })
+      .filter(Boolean);
+
+  const pointsFromHierarchical = (data) => {
+    const points = [];
+    const districts = data?.districts;
+    if (!Array.isArray(districts)) return points;
+
+    const wanted = Array.isArray(params.crimeTypes)
+      ? new Set(params.crimeTypes.map((t) => String(t).toUpperCase().replace(/\s+/g, '_')))
+      : null;
+
+    for (const district of districts) {
+      for (const neighborhood of district.neighborhoods || []) {
+        const summary = neighborhood.crime_summary || neighborhood;
+        const categories = summary.categories || [];
+        let intensity = summary.total_count || 1;
+        if (wanted && wanted.size > 0) {
+          const matched = categories.filter((c) =>
+            wanted.has(String(c.name || '').toUpperCase().replace(/\s+/g, '_'))
+          );
+          if (categories.length && matched.length === 0) continue;
+          intensity = matched.reduce((sum, c) => sum + (c.count || 0), 0) || intensity;
+        }
+        const centroid = summary.centroid || {};
+        let lat = centroid.latitude;
+        let lng = centroid.longitude;
+        if ((lat == null || lng == null) && Array.isArray(centroid.coordinates)) {
+          lng = centroid.coordinates[0];
+          lat = centroid.coordinates[1];
+        }
+        if (lat == null || lng == null) continue;
+        points.push({ lat: Number(lat), lng: Number(lng), intensity: Number(intensity) || 1 });
+      }
+    }
+    return points;
+  };
+
+  // Prefer file-based export when present
   try {
-    const apiParams = {
-      start_date: params.startDate,
-      end_date: params.endDate,
-      crime_types: params.crimeTypes?.join(','),
-      lat: params.lat,
-      lng: params.lng,
-      radius: params.radius,
-      zoom: params.zoom,
-      bounds: params.bounds?.join(','),
-    };
+    const exported = await api.get('crimes/exported_summary/', { params: apiParams });
+    const data = exported.data || {};
+    if (Array.isArray(data.heat_points) && data.heat_points.length > 0) {
+      return toHeatPoints(data.heat_points);
+    }
+    const hierarchical = pointsFromHierarchical(data);
+    if (hierarchical.length > 0) return hierarchical;
+    if (Array.isArray(data.results) && data.results.length > 0) {
+      return toHeatPoints(data.results);
+    }
+    if (Array.isArray(data) && data.length > 0) {
+      return toHeatPoints(data);
+    }
+  } catch (error) {
+    // 404 = no export file yet — fall through to live heatmap
+    if (error.response?.status && error.response.status !== 404) {
+      console.warn('Exported summary unavailable, falling back to heatmap', error);
+    }
+  }
+
+  try {
     const response = await api.get('crimes/heatmap/', { params: apiParams });
-    return response.data.map(item => {
-      const { latitude, longitude } = extractCoordinates(item);
-      return {
-        lat: latitude,
-        lng: longitude,
-        intensity: item.intensity || 1, // Default intensity if not provided
-      };
-    });
+    const raw = Array.isArray(response.data)
+      ? response.data
+      : response.data?.results || [];
+    return toHeatPoints(raw);
   } catch (error) {
     console.error('Error fetching exported crime summary:', error);
     throw new Error(error.response?.data?.detail || 'Failed to fetch exported crime summary');

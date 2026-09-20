@@ -14,6 +14,7 @@ from django.contrib.gis.measure import D
 from rest_framework import viewsets, permissions, status, filters, serializers
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.throttling import AnonRateThrottle
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
@@ -37,6 +38,17 @@ from .serializers import (
     CrimeLightSerializer,
 )
 from accounts.permissions import IsAgencyUser
+
+# Alias for public crime visibility — keep list/map/stats/trends aligned.
+PUBLIC_VISIBLE_STATUSES = Crime.PUBLIC_VISIBLE_STATUSES
+
+
+def _non_admin_status_q(user):
+    """Status filter for non-staff/admin viewers (empty Q for staff/admin)."""
+    if user.is_authenticated and (user.is_staff or user.user_type == 'admin'):
+        return Q()
+    return Q(status__in=PUBLIC_VISIBLE_STATUSES)
+
 
 class CrimeFilter(django_filters.FilterSet):
     """Filter for Crime model."""
@@ -89,8 +101,34 @@ class CrimeViewSet(viewsets.ModelViewSet):
         # Filter by user's agency for agency users
         if user.is_authenticated and user.user_type == 'agency' and user.agency:
             queryset = queryset.filter(agency=user.agency)
-        elif not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-            queryset = queryset.filter(status__in=['reported', 'solved', 'closed'])
+        else:
+            queryset = queryset.filter(_non_admin_status_q(user))
+
+        # Optional agency_id filter (staff/admin, or matching agency user)
+        agency_id = self.request.query_params.get('agency_id')
+        if agency_id:
+            try:
+                agency_id_int = int(agency_id)
+            except (TypeError, ValueError):
+                logger.error(f"Invalid agency_id: {agency_id}")
+            else:
+                can_filter = (
+                    user.is_authenticated
+                    and (
+                        user.is_staff
+                        or user.user_type == 'admin'
+                        or (
+                            user.user_type == 'agency'
+                            and user.agency
+                            and user.agency_id == agency_id_int
+                        )
+                    )
+                )
+                if can_filter:
+                    queryset = queryset.filter(agency_id=agency_id_int)
+                elif user.is_authenticated and user.user_type == 'agency':
+                    # Agency users may not spy on other agencies
+                    pass
 
         # Ensure location is not null
         queryset = queryset.filter(location__isnull=False)
@@ -152,7 +190,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
         """Ensure the crime is associated with the user's agency."""
         user = self.request.user
         if user.user_type != 'agency' or not user.agency:
-            return Response({'error': 'Only agency users can create crimes'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied('Only agency users can create crimes')
         serializer.save(agency=user.agency)
 
     def perform_update(self, serializer):
@@ -160,14 +198,14 @@ class CrimeViewSet(viewsets.ModelViewSet):
         user = self.request.user
         instance = self.get_object()
         if user.user_type != 'agency' or not user.agency or instance.agency != user.agency:
-            return Response({'error': 'You can only update your agency’s crimes'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied("You can only update your agency's crimes")
         serializer.save()
 
     def perform_destroy(self, instance):
         """Ensure the crime belongs to the user's agency."""
         user = self.request.user
         if user.user_type != 'agency' or not user.agency or instance.agency != user.agency:
-            return Response({'error': 'You can only delete your agency’s crimes'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied("You can only delete your agency's crimes")
         instance.delete()
 
     @action(detail=False, methods=['get'])
@@ -264,10 +302,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
             elif user.is_authenticated and user.user_type == 'agency' and user.agency:
                 agency_filter = Q(agency=user.agency)
 
-            status_filter = Q()
-            if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                # Include under_investigation — seed data uses it heavily
-                status_filter = Q(status__in=['reported', 'under_investigation', 'solved', 'closed'])
+            status_filter = _non_admin_status_q(user)
 
             base_query = Crime.objects.filter(location__isnull=False)
             current_qs = base_query.filter(date__lte=end_date)
@@ -374,9 +409,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
             elif user.is_authenticated and user.user_type == 'agency' and user.agency:
                 agency_filter = Q(agency=user.agency)
 
-            status_filter = Q()
-            if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                status_filter = Q(status__in=['reported', 'under_investigation', 'solved', 'closed'])
+            status_filter = _non_admin_status_q(user)
 
             type_filter = Q()
             crime_types = request.query_params.get('crime_types', '').split(',')
@@ -519,9 +552,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
             elif user.is_authenticated and user.user_type == 'agency' and user.agency:
                 agency_filter = Q(agency=user.agency)
 
-            status_filter = Q()
-            if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                status_filter = Q(status__in=['reported', 'solved', 'closed'])
+            status_filter = _non_admin_status_q(user)
 
             crimes = Crime.objects.filter(
                 date__gte=start_date,
@@ -582,9 +613,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
             elif user.is_authenticated and user.user_type == 'agency' and user.agency:
                 agency_filter = Q(agency=user.agency)
 
-            status_filter = Q()
-            if not (user.is_authenticated and (user.is_staff or user.user_type == 'admin')):
-                status_filter = Q(status__in=['reported', 'solved', 'closed'])
+            status_filter = _non_admin_status_q(user)
 
             queryset = Crime.objects.filter(
                 location__dwithin=(point, D(km=serializer.validated_data['radius'])),
@@ -606,12 +635,14 @@ class CrimeViewSet(viewsets.ModelViewSet):
             if 'status' in serializer.validated_data:
                 queryset = queryset.filter(status=serializer.validated_data['status'])
 
-            queryset = queryset.order_by('date', 'time')[offset:offset + limit]
-            serializer = CrimeListSerializer(queryset, many=True)
+            queryset = queryset.order_by('date', 'time')
+            total = queryset.count()
+            page = queryset[offset:offset + limit]
+            serializer = CrimeListSerializer(page, many=True)
             logger.info(f"Search returned {len(serializer.data)} crimes (offset={offset}, limit={limit})")
             return Response({
                 'results': serializer.data,
-                'count': queryset.count(),
+                'count': total,
                 'offset': offset,
                 'limit': limit
             })
@@ -845,6 +876,50 @@ class CrimeViewSet(viewsets.ModelViewSet):
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'])
+    def neighborhood_summary(self, request):
+        """
+        Neighborhood-level crime summaries (alias for hierarchical download_summary).
+        Returns flat marker-shaped results with centroids.
+        """
+        # Reuse hierarchical download_summary by forcing the flag
+        mutable = request.query_params.copy()
+        mutable['hierarchical'] = 'true'
+        request._request.GET = mutable
+        response = self.download_summary(request)
+        if response.status_code != 200:
+            return response
+        data = response.data or {}
+        results = []
+        for district in data.get('districts') or []:
+            for n in district.get('neighborhoods') or []:
+                summary = n.get('crime_summary') or {}
+                centroid = summary.get('centroid') or {}
+                lat = centroid.get('latitude')
+                lng = centroid.get('longitude')
+                if lat is None or lng is None:
+                    continue
+                results.append({
+                    'neighborhood_id': n.get('neighborhood_id'),
+                    'neighborhood_name': n.get('neighborhood_name'),
+                    'district_name': district.get('district_name'),
+                    'total_count': summary.get('total_count') or 0,
+                    'violent_count': summary.get('violent_count') or 0,
+                    'property_damage': summary.get('property_damage') or 0,
+                    'categories': summary.get('categories') or [],
+                    'centroid': {
+                        'latitude': lat,
+                        'longitude': lng,
+                        'coordinates': [lng, lat],
+                    },
+                })
+        return Response({
+            'results': results,
+            'count': len(results),
+            'date_range': data.get('date_range'),
+            'hierarchical': True,
+        })
+
+    @action(detail=False, methods=['get'])
     def download_summary(self, request):
         """Get crime summary data for download/visualization."""
         logger = logging.getLogger(__name__)
@@ -880,6 +955,15 @@ class CrimeViewSet(viewsets.ModelViewSet):
                 date__gte=start_date,
                 date__lte=end_date,
             )
+
+            crime_types = (
+                request.query_params.get('crime_types')
+                or request.query_params.get('crimeTypes')
+            )
+            if crime_types:
+                type_list = [t.strip() for t in crime_types.split(',') if t.strip()]
+                if type_list:
+                    queryset = queryset.filter(category__name__in=type_list)
 
             if lat and lng and radius:
                 try:
@@ -1104,17 +1188,19 @@ def public_crimes(request):
         radius = float(radius)
 
         user_location = Point(lng, lat, srid=4326)
-        crimes = Crime.objects.filter(
+        crimes_qs = Crime.objects.filter(
             location__dwithin=(user_location, D(km=radius)),
-            status__in=['reported', 'solved', 'closed'],
+            status__in=PUBLIC_VISIBLE_STATUSES,
             location__isnull=False
-        )[offset:offset + limit]
+        )
+        total = crimes_qs.count()
+        crimes = crimes_qs[offset:offset + limit]
 
         serializer = CrimeListSerializer(crimes, many=True)
         logger.info(f"Public crimes returned {len(serializer.data)} crimes (offset={offset}, limit={limit})")
         return Response({
             'results': serializer.data,
-            'count': crimes.count(),
+            'count': total,
             'offset': offset,
             'limit': limit
         })
@@ -1125,16 +1211,93 @@ def public_crimes(request):
         return Response({"error": str(e)}, status=500)
 
 
+@api_view(['GET'])
+@permission_classes([permissions.AllowAny])
 def get_exported_crime_summary(request):
+    """
+    Serve file-based crime export summary when available.
+    Returns hierarchical districts data plus a flat heat_points list
+    suitable for leaflet.heat ([lat, lng, intensity]).
+    """
+    logger = logging.getLogger(__name__)
     file_path = os.path.join(settings.MEDIA_ROOT, 'exports', 'crime_data_export.json')
-    
+
     try:
         if not os.path.exists(file_path):
-            return JsonResponse({'error': 'Exported file not found'}, status=404)
-        
-        with open(file_path, 'r') as f:
+            return Response(
+                {'error': 'Exported file not found', 'available': False},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        
-        return JsonResponse(data)
+
+        heat_points = []
+        crime_types_filter = request.query_params.get('crime_types') or request.query_params.get('crimeTypes')
+        wanted = set()
+        if crime_types_filter:
+            wanted = {
+                t.strip().upper().replace(' ', '_')
+                for t in crime_types_filter.split(',')
+                if t.strip()
+            }
+
+        districts = data.get('districts') if isinstance(data, dict) else None
+        if isinstance(districts, list):
+            for district in districts:
+                for neighborhood in district.get('neighborhoods') or []:
+                    summary = neighborhood.get('crime_summary') or neighborhood
+                    categories = summary.get('categories') or []
+                    if wanted:
+                        cats = [
+                            c for c in categories
+                            if str(c.get('name', '')).upper().replace(' ', '_') in wanted
+                        ]
+                        if not cats and categories:
+                            continue
+                        intensity = sum(c.get('count', 0) for c in cats) or summary.get('total_count') or 1
+                    else:
+                        intensity = summary.get('total_count') or 1
+
+                    centroid = summary.get('centroid') or {}
+                    lat = centroid.get('latitude')
+                    lng = centroid.get('longitude')
+                    if lat is None or lng is None:
+                        coords = centroid.get('coordinates')
+                        if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+                            lng, lat = coords[0], coords[1]
+                    if lat is None or lng is None:
+                        continue
+                    heat_points.append({
+                        'lat': float(lat),
+                        'lng': float(lng),
+                        'intensity': float(intensity) or 1,
+                        'neighborhood': summary.get('neighborhood_name') or neighborhood.get('neighborhood_name'),
+                        'district': summary.get('district_name') or district.get('name'),
+                    })
+        elif isinstance(data, list):
+            for item in data:
+                lat = item.get('lat', item.get('latitude'))
+                lng = item.get('lng', item.get('longitude'))
+                if lat is None or lng is None:
+                    loc = item.get('location') or {}
+                    coords = loc.get('coordinates') if isinstance(loc, dict) else None
+                    if isinstance(coords, (list, tuple)) and len(coords) >= 2:
+                        lng, lat = coords[0], coords[1]
+                if lat is None or lng is None:
+                    continue
+                heat_points.append({
+                    'lat': float(lat),
+                    'lng': float(lng),
+                    'intensity': float(item.get('intensity') or item.get('count') or 1),
+                })
+
+        payload = data if isinstance(data, dict) else {'results': data}
+        payload = {**payload, 'available': True, 'heat_points': heat_points, 'count': len(heat_points)}
+        return Response(payload)
     except Exception as e:
-        return JsonResponse({'error': f'Failed to read file: {str(e)}'}, status=500)
+        logger.error(f'Failed to read exported summary: {e}', exc_info=True)
+        return Response(
+            {'error': f'Failed to read file: {str(e)}', 'available': False},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )

@@ -99,6 +99,14 @@ class Crime(gis_models.Model):
         ('closed', 'Closed'),
         ('unfounded', 'Unfounded'),
     )
+    # Statuses visible to non-admin/public surfaces (list, map, stats, trends).
+    # Includes under_investigation — seed data uses it heavily; keep these in sync.
+    PUBLIC_VISIBLE_STATUSES = (
+        'reported',
+        'under_investigation',
+        'solved',
+        'closed',
+    )
 
     case_number = models.CharField(max_length=50, unique=True)
     category = models.ForeignKey(CrimeCategory, on_delete=models.CASCADE, related_name='crimes')

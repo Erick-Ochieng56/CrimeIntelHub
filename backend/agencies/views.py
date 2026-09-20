@@ -49,7 +49,7 @@ class AgencyViewSet(viewsets.ModelViewSet):
         """Return appropriate permissions based on action."""
         if self.action in ['approve', 'reject', 'disable', 'enable']:
             return [IsAdminUser()]
-        elif self.action in ['upload_data', 'api_keys', 'import_logs']:
+        elif self.action in ['upload_data', 'api_keys', 'import_logs', 'generate_api_key', 'toggle_api_key']:
             return [IsAuthenticated(), IsAgencyUserOrReadOnly()]
         return [IsAgencyUserOrReadOnly()]
 
@@ -119,6 +119,20 @@ class AgencyViewSet(viewsets.ModelViewSet):
         )
         serializer = APIKeySerializer(api_key)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=True, methods=['post'], url_path=r'api_keys/(?P<key_id>[^/.]+)/toggle')
+    def toggle_api_key(self, request, pk=None, key_id=None):
+        """Toggle an API key's active status."""
+        agency = self.get_object()
+        if not (request.user.user_type == 'agency' and request.user.agency == agency or request.user.is_staff):
+            return Response({"detail": "Not authorized."}, status=status.HTTP_403_FORBIDDEN)
+        try:
+            api_key = agency.api_keys.get(id=key_id)
+        except APIKey.DoesNotExist:
+            return Response({"detail": "API key not found."}, status=status.HTTP_404_NOT_FOUND)
+        api_key.is_active = not api_key.is_active
+        api_key.save(update_fields=['is_active'])
+        return Response(APIKeySerializer(api_key).data)
 
     @action(detail=True, methods=['get'])
     def import_logs(self, request, pk=None):

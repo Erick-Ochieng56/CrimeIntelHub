@@ -1,0 +1,5 @@
+data/osrm/
+.env
+*.pyc
+__pycache__/
+.venv-osrm/

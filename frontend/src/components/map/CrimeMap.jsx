@@ -1,14 +1,15 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   MapContainer,
-  TileLayer,
   Marker,
   Popup,
   Circle,
   useMap,
   useMapEvents,
   ZoomControl,
-} from 'react-leaflet';import MarkerClusterGroup from 'react-leaflet-cluster';
+} from 'react-leaflet';
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.heat';
@@ -18,6 +19,10 @@ import CountyChoropleth from './CountyChoropleth';
 import MapLegend from './MapLegend';
 import MapControls from './MapControls';
 import LocationSearch from './LocationSearch';
+import BasemapLayers from './BasemapLayers';
+import BasemapToggle from './BasemapToggle';
+import DirectionsPanel from './DirectionsPanel';
+import RouteLayer from './RouteLayer';
 import Loader from '../common/Loader';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { useGeolocation } from '../../hooks/useGeolocation';
@@ -31,6 +36,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { boundsToTileParams, getMapTier } from '../../utils/mapTiles';
 import { clusterRadiusMeters, colorForCount } from '../../utils/mapScale';
+import { getDrivingRoute } from '../../services/mapService';
 import icon from 'leaflet/dist/images/marker-icon.png';
 import iconShadow from 'leaflet/dist/images/marker-shadow.png';
 
@@ -60,6 +66,25 @@ const KENYA_ZOOM = 6;
 const USER_ZOOM = 14;
 const PLACE_ZOOM = 15;
 const SESSION_KEY = 'crimeMap.view';
+const BASEMAP_KEY = 'crimeMap.basemap';
+
+const readBasemap = () => {
+  try {
+    const v = localStorage.getItem(BASEMAP_KEY);
+    if (v === 'streets' || v === 'satellite' || v === 'hybrid') return v;
+  } catch {
+    /* ignore */
+  }
+  return 'streets';
+};
+
+const saveBasemap = (mode) => {
+  try {
+    localStorage.setItem(BASEMAP_KEY, mode);
+  } catch {
+    /* ignore */
+  }
+};
 
 const DefaultIcon = L.icon({
   iconUrl: icon,
@@ -277,6 +302,21 @@ const InitialBoundsCapture = ({ onViewportReady }) => {
   return null;
 };
 
+/** Map click → set directions destination when directions mode is open. */
+const DirectionsClickHandler = ({ enabled, onPick }) => {
+  useMapEvents({
+    click: (e) => {
+      if (!enabled) return;
+      onPick?.({
+        lat: e.latlng.lat,
+        lng: e.latlng.lng,
+        label: `${e.latlng.lat.toFixed(5)}, ${e.latlng.lng.toFixed(5)}`,
+      });
+    },
+  });
+  return null;
+};
+
 const CrimeStatsPanel = ({ crimes, summaries, viewMode, loading }) => {
   if (viewMode === 'summaries' || viewMode === 'exported') {
     const totalCrimes = summaries.reduce((sum, s) => sum + s.total_count, 0);
@@ -438,6 +478,7 @@ const CrimeLegend = ({ isVisible, onToggle }) => {
 };
 
 const CrimeMap = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showStats, setShowStats] = useState(false);
   const [showLegend, setShowLegend] = useState(false);
   const [showHotspots, setShowHotspots] = useState(true);
@@ -449,16 +490,28 @@ const CrimeMap = () => {
   const [navigation, setNavigation] = useState(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const [bootstrapDone, setBootstrapDone] = useState(false);
+  const [basemap, setBasemap] = useState(readBasemap);
+  const [directionsOpen, setDirectionsOpen] = useState(false);
+  const [routeDest, setRouteDest] = useState(null);
+  const [routeData, setRouteData] = useState(null);
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState(null);
   const [selectedFilters, setSelectedFilters] = useState({
     crimeTypes: [],
     dateRange: { start: null, end: null },
   });
 
   const navIdRef = useRef(0);
+  const deepLinkHandled = useRef(false);
   const { position, error: geoError, loading: geoLoading, getCurrentPosition } = useGeolocation({
     timeout: 8000,
     maximumAge: 60000,
   });
+
+  const handleBasemapChange = useCallback((mode) => {
+    setBasemap(mode);
+    saveBasemap(mode);
+  }, []);
 
   const applyViewport = useCallback(({ bounds, zoom }) => {
     if (bounds) setMapBounds(bounds);
@@ -470,9 +523,32 @@ const CrimeMap = () => {
     setNavigation({ id: navIdRef.current, ...payload });
   }, []);
 
-  // Wait for GPS; never race to Mombasa
+  // Deep-link from Dashboard (?lat=&lng=&zoom=) or GPS / session / Kenya default
   useEffect(() => {
     if (bootstrapDone || geoLoading) return;
+
+    if (!deepLinkHandled.current) {
+      const lat = parseFloat(searchParams.get('lat'));
+      const lng = parseFloat(searchParams.get('lng'));
+      if (Number.isFinite(lat) && Number.isFinite(lng)) {
+        const zoomParam = parseInt(searchParams.get('zoom'), 10);
+        const zoom = Number.isFinite(zoomParam) ? zoomParam : USER_ZOOM;
+        const center = [lat, lng];
+        setMapCenter(center);
+        setMapZoom(zoom);
+        saveSessionView(center, zoom);
+        deepLinkHandled.current = true;
+        setBootstrapDone(true);
+        // Clear coords from URL so refresh doesn't re-fly; keep other params
+        const next = new URLSearchParams(searchParams);
+        next.delete('lat');
+        next.delete('lng');
+        next.delete('zoom');
+        setSearchParams(next, { replace: true });
+        return;
+      }
+      deepLinkHandled.current = true;
+    }
 
     if (position) {
       const center = [position.latitude, position.longitude];
@@ -495,7 +571,7 @@ const CrimeMap = () => {
     setMapZoom(KENYA_ZOOM);
     saveSessionView(KENYA_CENTER, KENYA_ZOOM);
     setBootstrapDone(true);
-  }, [geoLoading, position, bootstrapDone]);
+  }, [geoLoading, position, bootstrapDone, searchParams, setSearchParams]);
 
   const viewportParams = useMemo(() => {
     if (!mapBounds) return null;
@@ -535,11 +611,39 @@ const CrimeMap = () => {
   // Neighbor prefetch disabled — was contributing to request storms / 429s
   // (React Query cache already covers revisiting the same tiles)
 
-  const summariesQuery = useCrimeSummaries({
+  const summaryParams = useMemo(
+    () => ({
+      hierarchical: true,
+      crimeTypes: selectedFilters.crimeTypes,
+      startDate: selectedFilters.dateRange.start
+        ? selectedFilters.dateRange.start.toISOString().split('T')[0]
+        : undefined,
+      endDate: selectedFilters.dateRange.end
+        ? selectedFilters.dateRange.end.toISOString().split('T')[0]
+        : undefined,
+    }),
+    [selectedFilters.crimeTypes, selectedFilters.dateRange.start, selectedFilters.dateRange.end]
+  );
+
+  const exportedParams = useMemo(
+    () => ({
+      crimeTypes: selectedFilters.crimeTypes,
+      startDate: selectedFilters.dateRange.start
+        ? selectedFilters.dateRange.start.toISOString().split('T')[0]
+        : undefined,
+      endDate: selectedFilters.dateRange.end
+        ? selectedFilters.dateRange.end.toISOString().split('T')[0]
+        : undefined,
+      days: 30,
+    }),
+    [selectedFilters.crimeTypes, selectedFilters.dateRange.start, selectedFilters.dateRange.end]
+  );
+
+  const summariesQuery = useCrimeSummaries(summaryParams, {
     enabled: viewMode === 'summaries',
     retry: 2,
   });
-  const exportedQuery = useExportedCrimeSummary({
+  const exportedQuery = useExportedCrimeSummary(exportedParams, {
     enabled: viewMode === 'exported',
     retry: 2,
   });
@@ -556,20 +660,37 @@ const CrimeMap = () => {
   const crimes = viewportMode === 'points' ? viewportResults : [];
   const aggregates = viewportMode === 'points' ? [] : viewportResults;
   const summaries = summariesQuery.data?.results || [];
+  const exportedPoints = Array.isArray(exportedQuery.data) ? exportedQuery.data : [];
   const hotspots = hotspotsQuery.data || [];
   const loading =
-    viewportQuery.isLoading ||
-    summariesQuery.isLoading ||
-    exportedQuery.isLoading ||
-    hotspotsQuery.isLoading;
-  const error = viewportQuery.error || summariesQuery.error || exportedQuery.error || hotspotsQuery.error;
+    (viewMode === 'crimes' && viewportQuery.isLoading) ||
+    (viewMode === 'summaries' && summariesQuery.isLoading) ||
+    (viewMode === 'exported' && exportedQuery.isLoading);
+  // Scope errors per feature — do not blank crime layers for hotspot/summary failures
+  const mapError =
+    viewMode === 'crimes'
+      ? viewportQuery.error
+      : viewMode === 'summaries'
+        ? summariesQuery.error
+        : viewMode === 'exported'
+          ? exportedQuery.error
+          : null;
+  const hotspotError = showHotspots ? hotspotsQuery.error : null;
 
   const heatPoints = useMemo(() => {
+    if (viewMode === 'exported' && exportedPoints.length) {
+      const maxIntensity = Math.max(...exportedPoints.map((p) => p.intensity || 1), 1);
+      return exportedPoints.map((p) => [
+        p.lat,
+        p.lng,
+        Math.min(1, (p.intensity || 1) / maxIntensity),
+      ]);
+    }
     // Heat only at mid zoom — national view uses choropleth instead
     if (viewportMode !== 'clusters' || !aggregates.length) return [];
     const maxCount = Math.max(...aggregates.map((a) => a.count || 1), 1);
     return aggregates.map((a) => [a.lat, a.lng, Math.min(1, (a.count || 1) / maxCount)]);
-  }, [aggregates, viewportMode]);
+  }, [aggregates, viewportMode, viewMode, exportedPoints]);
 
   const aggregateMaxCount = useMemo(
     () => Math.max(0, ...aggregates.map((a) => a.count || 0)),
@@ -585,11 +706,15 @@ const CrimeMap = () => {
       return { crimes: filtered, summaries: [] };
     }
 
+    if (viewMode === 'exported') {
+      return { crimes: [], summaries: [] };
+    }
+
     let filtered = [...summaries];
     if (selectedFilters.crimeTypes.length > 0) {
       filtered = filtered
         .map((summary) => {
-          const filteredCategories = summary.categories.filter((cat) =>
+          const filteredCategories = (summary.categories || []).filter((cat) =>
             selectedFilters.crimeTypes.includes(cat.name.toUpperCase())
           );
           const total_count = filteredCategories.reduce((sum, cat) => sum + cat.count, 0);
@@ -608,21 +733,83 @@ const CrimeMap = () => {
   const filteredCrimes = filteredData.crimes;
   const filteredSummaries = filteredData.summaries;
 
+  // Keep crime-type legend collapsed when leaving street/points zoom
+  useEffect(() => {
+    if (viewportMode !== 'points') setShowLegend(false);
+  }, [viewportMode]);
+
   const handlePlaceSelect = useCallback(
     (place) => {
       setSelectedPlace(place);
+      if (directionsOpen) {
+        setRouteDest({
+          lat: place.lat,
+          lng: place.lng,
+          label: place.primary || place.name,
+        });
+        setRouteData(null);
+        setRouteError(null);
+      }
       if (place.boundingbox) {
         requestNavigate({ bounds: place.boundingbox });
       } else {
         requestNavigate({ center: [place.lat, place.lng], zoom: PLACE_ZOOM });
       }
     },
-    [requestNavigate]
+    [requestNavigate, directionsOpen]
   );
 
   const handleSearchClear = useCallback(() => {
     setSelectedPlace(null);
   }, []);
+
+  const setDestination = useCallback((dest) => {
+    setRouteDest(dest);
+    setRouteData(null);
+    setRouteError(null);
+    if (!directionsOpen) setDirectionsOpen(true);
+  }, [directionsOpen]);
+
+  const clearRoute = useCallback(() => {
+    setRouteData(null);
+    setRouteError(null);
+    setRouteDest(null);
+  }, []);
+
+  const runRoute = useCallback(async () => {
+    if (!routeDest) {
+      setRouteError('Select a destination (search, crime, or map click)');
+      return;
+    }
+    if (!position) {
+      setRouteError('Enable location or wait for GPS to set origin');
+      getCurrentPosition();
+      return;
+    }
+
+    setRouteLoading(true);
+    setRouteError(null);
+    try {
+      const result = await getDrivingRoute(
+        { lat: position.latitude, lng: position.longitude },
+        { lat: routeDest.lat, lng: routeDest.lng }
+      );
+      setRouteData(result);
+    } catch (err) {
+      setRouteData(null);
+      setRouteError(err?.message || 'Routing unavailable');
+    } finally {
+      setRouteLoading(false);
+    }
+  }, [routeDest, position, getCurrentPosition]);
+
+  // Auto-route when destination is set and directions are open with a GPS fix
+  useEffect(() => {
+    if (!directionsOpen || !routeDest || !position || routeLoading) return;
+    if (routeData || routeError) return;
+    runRoute();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional one-shot when dest+GPS ready
+  }, [directionsOpen, routeDest, position]);
 
   const flyToUser = useCallback(
     (coords) => {
@@ -716,10 +903,7 @@ const CrimeMap = () => {
           style={{ height: '100%', width: '100%' }}
           zoomControl={false}
         >
-          <TileLayer
-            attribution='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          />
+          <BasemapLayers mode={basemap} />
           <ZoomControl position="bottomright" />
           <InitialBoundsCapture onViewportReady={handleInitialViewport} />
           <MapNavigator
@@ -728,6 +912,11 @@ const CrimeMap = () => {
             onDone={handleNavigationDone}
           />
           <MapBoundsHandler onViewportChange={applyViewport} suppress={isNavigating} />
+          <DirectionsClickHandler
+            enabled={directionsOpen}
+            onPick={(dest) => setDestination(dest)}
+          />
+          <RouteLayer route={routeData} />
 
           {position && (
             <>
@@ -763,19 +952,32 @@ const CrimeMap = () => {
                   {selectedPlace.secondary && (
                     <div className="text-gray-500 text-xs">{selectedPlace.secondary}</div>
                   )}
+                  <button
+                    type="button"
+                    className="mt-2 text-xs text-blue-600 hover:underline"
+                    onClick={() =>
+                      setDestination({
+                        lat: selectedPlace.lat,
+                        lng: selectedPlace.lng,
+                        label: selectedPlace.primary || selectedPlace.name,
+                      })
+                    }
+                  >
+                    Directions here
+                  </button>
                 </div>
               </Popup>
             </Marker>
           )}
 
-          {viewMode === 'crimes' && !error && viewportMode === 'districts' && (
+          {viewMode === 'crimes' && !mapError && viewportMode === 'districts' && (
             <CountyChoropleth
               aggregates={aggregates}
               onCountyClick={zoomIntoAggregate}
             />
           )}
 
-          {viewMode === 'crimes' && !error && viewportMode === 'clusters' && (
+          {viewMode === 'crimes' && !mapError && viewportMode === 'clusters' && (
             <>
               <DensityHeatLayer points={heatPoints} />
               {aggregates.map((agg) => {
@@ -817,7 +1019,7 @@ const CrimeMap = () => {
             </>
           )}
 
-          {viewMode === 'crimes' && !loading && !error && viewportMode === 'points' && filteredCrimes.length > 0 && (
+          {viewMode === 'crimes' && !loading && !mapError && viewportMode === 'points' && filteredCrimes.length > 0 && (
             <MarkerClusterGroup
               chunkedLoading
               maxClusterRadius={60}
@@ -843,6 +1045,19 @@ const CrimeMap = () => {
                           Violent Crime
                         </span>
                       )}
+                      <button
+                        type="button"
+                        className="mt-2 block text-xs text-blue-600 hover:underline"
+                        onClick={() =>
+                          setDestination({
+                            lat: crime.latitude,
+                            lng: crime.longitude,
+                            label: crime.type || 'Crime',
+                          })
+                        }
+                      >
+                        Directions here
+                      </button>
                     </div>
                   </Popup>
                 </Marker>
@@ -850,9 +1065,13 @@ const CrimeMap = () => {
             </MarkerClusterGroup>
           )}
 
-          {(viewMode === 'summaries' || viewMode === 'exported') &&
+          {viewMode === 'exported' && !loading && !mapError && heatPoints.length > 0 && (
+            <DensityHeatLayer points={heatPoints} />
+          )}
+
+          {viewMode === 'summaries' &&
             !loading &&
-            !error &&
+            !mapError &&
             filteredSummaries.length > 0 &&
             filteredSummaries.map((summary) => (
               <NeighborhoodSummaryMarker key={summary.neighborhood_id} summary={summary} />
@@ -885,48 +1104,39 @@ const CrimeMap = () => {
             ))}
         </MapContainer>
 
-        {/* Persistent Maps-style search bar */}
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[550] w-[min(92vw,28rem)] px-2">
-          <LocationSearch
-            viewbox={searchViewbox}
-            onLocationSelect={handlePlaceSelect}
-            onClear={handleSearchClear}
-            onUseCurrentLocation={() => {
-              if (!position) locatePendingRef.current = true;
-              handleUseCurrentLocation();
-            }}
-          />
+        {/* Top chrome: filters FAB (left) · search (center) · meta + actions (right) */}
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[550] w-[min(92vw,28rem)] px-2 pointer-events-none">
+          <div className="pointer-events-auto">
+            <LocationSearch
+              viewbox={searchViewbox}
+              onLocationSelect={handlePlaceSelect}
+              onClear={handleSearchClear}
+              onUseCurrentLocation={() => {
+                if (!position) locatePendingRef.current = true;
+                handleUseCurrentLocation();
+              }}
+            />
+          </div>
         </div>
 
-        {/* Locate me (Google Maps–style) */}
-        <button
-          type="button"
-          onClick={handleLocateMe}
-          className="absolute bottom-24 right-4 z-[500] w-11 h-11 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          title="Locate me"
-          aria-label="Locate me"
-        >
-          <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19a7 7 0 110-14 7 7 0 010 14z" />
-          </svg>
-        </button>
-
-        <div className="absolute top-4 right-4 bg-white px-3 py-2 shadow rounded z-[400] flex items-center max-w-[40vw]">
-          <span className="text-sm font-medium mr-2 truncate">
+        <div className="absolute top-4 right-4 z-[500] flex items-center gap-1.5 bg-white/95 px-2.5 py-1.5 shadow-md rounded-lg border border-gray-100 max-w-[min(42vw,16rem)]">
+          <span className="text-xs sm:text-sm font-medium text-gray-800 truncate tabular-nums">
             {loading
-              ? 'Loading...'
+              ? 'Loading…'
               : viewMode === 'crimes'
                 ? viewportMode === 'points'
-                  ? `${filteredCrimes.length}${viewportQuery.data?.truncated ? '+' : ''} of ${viewportTotal} crimes`
-                  : `All data · ${viewportTotal} crimes · ${aggregates.length} areas`
-                : `${filteredSummaries.length} neighborhoods`}
+                  ? `${filteredCrimes.length.toLocaleString()}${viewportQuery.data?.truncated ? '+' : ''} of ${viewportTotal.toLocaleString()}`
+                  : `${viewportTotal.toLocaleString()} crimes`
+                : viewMode === 'exported'
+                  ? `${exportedPoints.length} heat points`
+                  : `${filteredSummaries.length} areas`}
           </span>
           <button
             type="button"
             onClick={() =>
               setViewMode((m) => (m === 'crimes' ? 'summaries' : m === 'summaries' ? 'exported' : 'crimes'))
             }
-            className="p-1 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none mr-2"
+            className="p-1.5 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none shrink-0"
             title="Cycle view mode"
           >
             <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -936,10 +1146,12 @@ const CrimeMap = () => {
           <button
             type="button"
             onClick={() => setShowStats((s) => !s)}
-            className="p-1 bg-gray-100 rounded hover:bg-gray-200 focus:outline-none mr-2"
+            className={`p-1.5 rounded focus:outline-none shrink-0 ${
+              showStats ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
             title="Toggle statistics panel"
           >
-            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -951,8 +1163,8 @@ const CrimeMap = () => {
           <button
             type="button"
             onClick={() => setShowHotspots((h) => !h)}
-            className={`p-1 rounded focus:outline-none ${
-              showHotspots ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
+            className={`p-1.5 rounded focus:outline-none shrink-0 ${
+              showHotspots ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}
             title="Toggle hotspots"
           >
@@ -973,50 +1185,147 @@ const CrimeMap = () => {
           </button>
         </div>
 
+        <DirectionsPanel
+          open={directionsOpen}
+          loading={routeLoading}
+          error={routeError}
+          route={routeData}
+          originLabel={position ? 'Your location' : 'Waiting for GPS…'}
+          destinationLabel={routeDest?.label}
+          canRoute={!!routeDest && !!position}
+          onRoute={runRoute}
+          onClear={clearRoute}
+          onClose={() => {
+            setDirectionsOpen(false);
+            clearRoute();
+          }}
+        />
+
+        <BasemapToggle mode={basemap} onChange={handleBasemapChange} />
+
+        {/* Directions toggle */}
+        <button
+          type="button"
+          onClick={() => {
+            setDirectionsOpen((v) => {
+              if (v) {
+                clearRoute();
+                return false;
+              }
+              if (selectedPlace) {
+                setRouteDest({
+                  lat: selectedPlace.lat,
+                  lng: selectedPlace.lng,
+                  label: selectedPlace.primary || selectedPlace.name,
+                });
+                setRouteData(null);
+                setRouteError(null);
+              }
+              return true;
+            });
+          }}
+          className={`absolute bottom-36 right-4 z-[500] w-11 h-11 rounded-full shadow-lg border flex items-center justify-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+            directionsOpen
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-blue-600 border-gray-200 hover:bg-gray-50'
+          }`}
+          title="Directions"
+          aria-label="Directions"
+          aria-pressed={directionsOpen}
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+            />
+          </svg>
+        </button>
+
+        {/* Locate me (Google Maps–style) */}
+        <button
+          type="button"
+          onClick={handleLocateMe}
+          className="absolute bottom-24 right-4 z-[500] w-11 h-11 rounded-full bg-white shadow-lg border border-gray-200 flex items-center justify-center hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          title="Locate me"
+          aria-label="Locate me"
+        >
+          <svg className="w-5 h-5 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 8a4 4 0 100 8 4 4 0 000-8zm8.94 3A8.994 8.994 0 0013 3.06V1h-2v2.06A8.994 8.994 0 003.06 11H1v2h2.06A8.994 8.994 0 0011 20.94V23h2v-2.06A8.994 8.994 0 0020.94 13H23v-2h-2.06zM12 19a7 7 0 110-14 7 7 0 010 14z" />
+          </svg>
+        </button>
+
         <MapControls
           onFilterChange={setSelectedFilters}
           filters={selectedFilters}
-          showHotspots={showHotspots}
-          onToggleHotspots={() => setShowHotspots((h) => !h)}
           onRefresh={() => {
-            queryClient.invalidateQueries({ queryKey: ['map-viewport'] });
-            queryClient.invalidateQueries({ queryKey: ['crimes'] });
-            if (viewMode === 'summaries') {
+            if (viewMode === 'crimes') {
+              queryClient.invalidateQueries({ queryKey: ['map-viewport'] });
+              queryClient.invalidateQueries({ queryKey: ['crimes'] });
+            } else if (viewMode === 'summaries') {
               queryClient.invalidateQueries({ queryKey: ['crime-summaries'] });
             } else if (viewMode === 'exported') {
               queryClient.invalidateQueries({ queryKey: ['exported-summary'] });
             }
-            queryClient.invalidateQueries({ queryKey: ['hotspots'] });
+            if (showHotspots) {
+              queryClient.invalidateQueries({ queryKey: ['hotspots'] });
+            }
           }}
         />
 
         {showStats && (
           <CrimeStatsPanel
             crimes={filteredCrimes}
-            summaries={filteredSummaries}
+            summaries={viewMode === 'exported' ? [] : filteredSummaries}
             viewMode={viewMode}
             loading={loading}
           />
         )}
 
-        <CrimeLegend isVisible={showLegend} onToggle={() => setShowLegend((v) => !v)} />
+        {/* Crime-type legend only in point mode; density scale handles districts/clusters */}
+        {viewMode === 'crimes' && viewportMode === 'points' && (
+          <CrimeLegend isVisible={showLegend} onToggle={() => setShowLegend((v) => !v)} />
+        )}
 
         {loading && (
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-white/95 px-4 py-2 rounded-full shadow z-[400] flex items-center gap-2">
             <Loader size="sm" />
             <span className="text-sm text-gray-700">
-              Loading {viewMode === 'crimes' ? 'crimes' : 'summaries'}…
+              Loading{' '}
+              {viewMode === 'crimes'
+                ? 'crimes'
+                : viewMode === 'exported'
+                  ? 'heatmap'
+                  : 'summaries'}
+              …
             </span>
           </div>
         )}
 
-        {error && (
+        {(mapError || hotspotError) && (
           <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded z-[400] max-w-md">
             <strong className="font-bold">Error!</strong>
-            <span className="block sm:inline"> {error?.message || error?.toString() || 'An error occurred'}</span>
+            <span className="block sm:inline">
+              {' '}
+              {(mapError || hotspotError)?.message ||
+                (mapError || hotspotError)?.toString() ||
+                'An error occurred'}
+            </span>
             <button
               type="button"
-              onClick={() => queryClient.invalidateQueries({ queryKey: ['crimes'] })}
+              onClick={() => {
+                if (viewMode === 'crimes') {
+                  queryClient.invalidateQueries({ queryKey: ['map-viewport'] });
+                } else if (viewMode === 'summaries') {
+                  queryClient.invalidateQueries({ queryKey: ['crime-summaries'] });
+                } else if (viewMode === 'exported') {
+                  queryClient.invalidateQueries({ queryKey: ['exported-summary'] });
+                }
+                if (hotspotError) {
+                  queryClient.invalidateQueries({ queryKey: ['hotspots'] });
+                }
+              }}
               className="mt-2 bg-red-700 text-white px-2 py-1 rounded text-sm hover:bg-red-800 focus:outline-none"
             >
               Retry
@@ -1025,7 +1334,7 @@ const CrimeMap = () => {
         )}
 
         {!loading &&
-          !error &&
+          !mapError &&
           viewMode === 'crimes' &&
           ((viewportMode === 'points' && filteredCrimes.length === 0) ||
             (viewportMode !== 'points' && aggregates.length === 0)) && (
@@ -1038,16 +1347,26 @@ const CrimeMap = () => {
           )}
 
         {!loading &&
-          !error &&
-          viewMode !== 'crimes' &&
+          !mapError &&
+          viewMode === 'summaries' &&
           filteredSummaries.length === 0 && (
             <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded z-[400] max-w-md">
               <span>No neighborhood summaries found with the current filters.</span>
             </div>
           )}
 
+        {!loading &&
+          !mapError &&
+          viewMode === 'exported' &&
+          exportedPoints.length === 0 && (
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded z-[400] max-w-md">
+              <span>No exported heatmap points found with the current filters.</span>
+            </div>
+          )}
+
         {viewMode === 'crimes' && !loading && (
           <>
+            {/* Density scale for choropleth / clusters only (MapLegend hides itself in points mode) */}
             <MapLegend mode={viewportMode} maxCount={aggregateMaxCount} />
             <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-[400] bg-white/95 text-xs text-gray-600 px-3 py-1.5 rounded-full shadow border border-gray-100">
               {viewportMode === 'districts' &&
@@ -1056,9 +1375,6 @@ const CrimeMap = () => {
                 'Area clusters — size & colour = density (zoom in for markers)'}
               {viewportMode === 'points' &&
                 'Street view — individual crime markers in this area'}
-              {viewportTotal > 0 && viewportMode !== 'points' && (
-                <span className="text-gray-400"> · {viewportTotal.toLocaleString()} total</span>
-              )}
             </div>
           </>
         )}

@@ -20,7 +20,7 @@ const CRIME_TYPES = [
   { value: 'OTHER_PENAL', label: 'Other Penal Code Offenses', color: '#D8BFD8' },
 ];
 
-const MapControls = ({ onFilterChange, filters, onRefresh, showHotspots, onToggleHotspots }) => {
+const MapControls = ({ onFilterChange, filters, onRefresh }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [dateRange, setDateRange] = useState({
     startDate: filters.dateRange?.start || null,
@@ -141,27 +141,6 @@ const MapControls = ({ onFilterChange, filters, onRefresh, showHotspots, onToggl
                   ))}
                 </div>
               </div>
-
-              {typeof onToggleHotspots === 'function' && (
-                <div className="border-t border-gray-100 pt-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-gray-700">Show Hotspots</span>
-                    <button
-                      type="button"
-                      onClick={onToggleHotspots}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                        showHotspots ? 'bg-blue-600' : 'bg-gray-200'
-                      }`}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                          showHotspots ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              )}
 
               <div className="flex space-x-2 pt-2">
                 <button
