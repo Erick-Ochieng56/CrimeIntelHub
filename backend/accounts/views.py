@@ -36,6 +36,7 @@ class RegisterView(generics.CreateAPIView):
     """API endpoint for user registration."""
     serializer_class = RegisterSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []  # JWT login/register — no session CSRF
 
     def create(self, request, *args, **kwargs):
         """Create a new regular user and return tokens."""
@@ -54,6 +55,7 @@ class AgencyRegisterView(generics.CreateAPIView):
     """API endpoint for agency registration."""
     serializer_class = AgencyRegisterSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def create(self, request, *args, **kwargs):
         """Create a new agency user and return tokens."""
@@ -74,6 +76,7 @@ class LoginView(generics.GenericAPIView):
     """API endpoint for user login."""
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         """Authenticate user and return tokens."""
@@ -93,6 +96,7 @@ class AgencyLoginView(generics.GenericAPIView):
     """API endpoint for agency user login."""
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         """Authenticate agency user and return tokens."""
@@ -115,6 +119,7 @@ class AdminLoginView(generics.GenericAPIView):
     """API endpoint for admin login."""
     serializer_class = LoginSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         """Authenticate admin user and return tokens."""
@@ -171,6 +176,7 @@ class PasswordResetRequestView(generics.GenericAPIView):
     """API endpoint for requesting password reset."""
     serializer_class = PasswordResetRequestSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         """Send password reset email (always returns the same message)."""
@@ -203,6 +209,7 @@ class PasswordResetConfirmView(generics.GenericAPIView):
     """API endpoint for confirming password reset."""
     serializer_class = PasswordResetConfirmSerializer
     permission_classes = [permissions.AllowAny]
+    authentication_classes = []
 
     def post(self, request, *args, **kwargs):
         """Reset user password using a valid unused token."""

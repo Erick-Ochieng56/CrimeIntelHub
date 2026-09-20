@@ -7,28 +7,34 @@ import { useState, useEffect } from 'react';
  * @param {*} initialValue - The initial value (used if localStorage has no value)
  * @returns {Array} [storedValue, setValue] - State getter and setter
  */
-export const useLocalStorage = (key, initialValue) => {
-  // Get initial value from localStorage or use provided initialValue
-  const [storedValue, setStoredValue] = useState(() => {
+const readStoredValue = (key, initialValue) => {
+  try {
+    const item = window.localStorage.getItem(key);
+    if (item === null) return initialValue;
     try {
-      const item = window.localStorage.getItem(key);
-      // Parse stored json or return initialValue
-      return item ? JSON.parse(item) : initialValue;
-    } catch (error) {
-      console.error(`Error reading localStorage key "${key}":`, error);
-      return initialValue;
+      return JSON.parse(item);
+    } catch {
+      // Legacy plain strings (e.g. theme=auto from Django admin / older writes)
+      return item;
     }
-  });
-  
-  // Update localStorage when storedValue changes
+  } catch (error) {
+    console.error(`Error reading localStorage key "${key}":`, error);
+    return initialValue;
+  }
+};
+
+export const useLocalStorage = (key, initialValue) => {
+  const [storedValue, setStoredValue] = useState(() =>
+    readStoredValue(key, initialValue)
+  );
+
   useEffect(() => {
     try {
-      // Allow value to be a function so it's consistent with useState
       window.localStorage.setItem(key, JSON.stringify(storedValue));
     } catch (error) {
       console.error(`Error setting localStorage key "${key}":`, error);
     }
   }, [key, storedValue]);
-  
+
   return [storedValue, setStoredValue];
 };
