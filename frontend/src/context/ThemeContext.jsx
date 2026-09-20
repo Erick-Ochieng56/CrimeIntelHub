@@ -4,9 +4,12 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 // Create context
 export const ThemeContext = createContext();
 
+const normalizeTheme = (value) =>
+  value === 'dark' || value === 'light' ? value : 'light';
+
 export const ThemeProvider = ({ children }) => {
   const [storedTheme, setStoredTheme] = useLocalStorage('theme', 'light');
-  const [theme, setTheme] = useState(storedTheme);
+  const [theme, setTheme] = useState(() => normalizeTheme(storedTheme));
   
   // Update body class when theme changes
   useEffect(() => {
