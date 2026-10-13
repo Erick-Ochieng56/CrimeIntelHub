@@ -28,6 +28,16 @@ export default defineConfig({
       }
     }
   },
+  // server.allowedHosts does not apply to `vite preview`
+  preview: {
+    host: '0.0.0.0',
+    port: 3000,
+    strictPort: true,
+    allowedHosts: [
+      'crime.erickochieng.co.ke',
+      '.erickochieng.co.ke',
+    ],
+  },
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

@@ -10,14 +10,8 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-import joblib
 import numpy as np
-import pandas as pd
 from django.conf import settings
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, roc_auc_score
 
 logger = logging.getLogger(__name__)
 
@@ -54,6 +48,7 @@ class CrimePredictor:
         self.district_categories: List[str] = []
 
     def _load_crime_frame(self) -> pd.DataFrame:
+        import pandas as pd
         from crimes.models import Crime
 
         rows = []
@@ -100,6 +95,8 @@ class CrimePredictor:
         return df
 
     def _compute_hotspots(self, df: pd.DataFrame) -> None:
+        from sklearn.cluster import KMeans
+
         coords = df[['longitude', 'latitude']].to_numpy(dtype=float)
         n = min(self.n_hotspots, max(1, len(coords)))
         if len(coords) == 1:
@@ -148,6 +145,8 @@ class CrimePredictor:
 
     def build_training_matrix(self, df: pd.DataFrame) -> tuple[pd.DataFrame, pd.Series]:
         """Positive samples = real crimes; negatives = random non-crime points."""
+        import pandas as pd
+
         df = self._encode_districts(df, fit=True)
         self._compute_hotspots(df)
 
@@ -202,6 +201,10 @@ class CrimePredictor:
         return X, y
 
     def train(self) -> Dict[str, Any]:
+        from sklearn.ensemble import RandomForestClassifier
+        from sklearn.metrics import accuracy_score, roc_auc_score
+        from sklearn.model_selection import train_test_split
+
         df = self._load_crime_frame()
         if df.empty:
             raise ValueError('No crime data with locations available for training')
@@ -238,6 +241,8 @@ class CrimePredictor:
         return metrics
 
     def save(self) -> str:
+        import joblib
+
         payload = {
             'version': MODEL_VERSION,
             'model': self.model,
@@ -251,6 +256,8 @@ class CrimePredictor:
         return self.model_path
 
     def load(self) -> bool:
+        import joblib
+
         if not os.path.exists(self.model_path):
             return False
         payload = joblib.load(self.model_path)
@@ -287,6 +294,8 @@ class CrimePredictor:
         date: str,
         crime_type: Optional[str] = None,
     ) -> Dict[str, Any]:
+        import pandas as pd
+
         self.ensure_ready()
         df = self._load_crime_frame()
         if self.hotspot_centers is None and not df.empty:

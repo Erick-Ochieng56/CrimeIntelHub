@@ -19,7 +19,6 @@ from .serializers import (
 from crime_etl.models import ImportJob, ImportLog, DataSource
 from crimes.models import Crime, CrimeCategory
 from crimes.serializers import CrimeCreateSerializer
-import pandas as pd
 import json
 from django.db import transaction
 
@@ -188,7 +187,10 @@ class AgencyViewSet(viewsets.ModelViewSet):
             # Process file based on type
             file_extension = file.name.split('.')[-1].lower()
             records = []
-            
+
+            if file_extension in ('csv', 'xlsx', 'xls'):
+                import pandas as pd
+
             if file_extension == 'csv':
                 df = pd.read_csv(file)
                 records = df.to_dict('records')

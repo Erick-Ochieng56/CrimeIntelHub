@@ -53,9 +53,11 @@ For `crime.erickochieng.co.ke` behind Cloudflare + the Compose `production` ngin
    - `CSRF_TRUSTED_ORIGINS=https://crime.erickochieng.co.ke`
    - `TRUST_X_FORWARDED_PROTO=true` — required for correct HTTPS detection behind Cloudflare; only safe when traffic is Cloudflare-proxied / the origin is locked (do not enable if `:80`/`:443` are open to the world without CF)
    - `VITE_API_BASE_URL=https://crime.erickochieng.co.ke/api`
+   - `FRONTEND_MODE=preview` so the frontend container builds the SPA and nginx serves it (no Vite/Node server)
 6. **Start** — `docker compose --profile production up -d` (recreate nginx after placing certs: `docker compose --profile production up -d --force-recreate nginx`)
-7. **Frontend bake** — After changing `VITE_API_BASE_URL`, recreate the frontend so Vite picks it up:  
-   `docker compose --profile production up -d --build frontend`
+7. **Frontend** — After pull, or after changing `VITE_API_BASE_URL`, recreate the frontend then restart nginx. Nginx must start after the build has written `index.html` (the nginx command waits for that file). The first start is slower because it runs `vite build`:  
+   `docker compose --profile production up -d --force-recreate frontend`  
+   `docker compose --profile production restart nginx`
 
 - Keep `ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, `FRONTEND_URL`, `CSRF_TRUSTED_ORIGINS`, and `VITE_API_BASE_URL` aligned with the public HTTPS URL or the UI/API will fail.
 - Cloudflare sets/overwrites `X-Forwarded-Proto` by default. With `TRUST_X_FORWARDED_PROTO=true`, Django trusts that header via `SECURE_PROXY_SSL_HEADER` — prefer Cloudflare-only / OCI locked to Cloudflare IP ranges so clients cannot spoof it by hitting the VM directly.
