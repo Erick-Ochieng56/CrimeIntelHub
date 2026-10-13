@@ -84,8 +84,18 @@ services:
     volumes:
       - ./frontend:/app
       - frontend_node_modules:/app/node_modules
+      # Build output for the production nginx SPA. Named volume hides host dist/.
+      - frontend_dist:/app/dist
+    # Default (FRONTEND_MODE unset) stays the Vite dev server. preview builds at
+    # start so VITE_API_BASE_URL is baked in, then sleeps (nginx serves dist).
+    # NODE_ENV=production overrides the service default so the bundle is not a dev build.
+    command:
+      - sh
+      - -c
+      - 'if [ "${FRONTEND_MODE:-}" = preview ]; then NODE_ENV=production npm run build && sleep infinity; else npm run dev -- --host 0.0.0.0 --port 3000 --strictPort; fi'
+    restart: unless-stopped
     ports:
-      - "${FRONTEND_PORT:-3000}:3000"
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
     depends_on:
       - backend
 
@@ -135,6 +145,12 @@ services:
     volumes:
       - ./deploy/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./deploy/certs:/etc/nginx/certs:ro
+      - frontend_dist:/usr/share/nginx/spa:ro
+    # Wait until the frontend build has written index.html (dev does not).
+    command:
+      - sh
+      - -c
+      - 'while [ ! -f /usr/share/nginx/spa/index.html ]; do sleep 1; done; exec nginx -g "daemon off;"'
     depends_on:
       - backend
       - frontend
@@ -145,6 +161,7 @@ volumes:
   backend_static:
   backend_media:
   frontend_node_modules:
+  frontend_dist:
 
 networks:
   default:

@@ -21,10 +21,6 @@ djangorestframework_simplejwt==5.5.0
 dotenv==0.9.9
 drf-yasg==1.21.10
 et_xmlfile==2.0.0
-# GDAL is platform-specific — do not pin a local Windows wheel here.
-# Docker: installed in Dockerfile via apt + pip (matches libgdal-dev).
-# Windows local: use Python 3.12 + conda-forge, or OSGeo4W (see README).
-geopandas==1.1.2
 gunicorn==23.0.0
 whitenoise==6.9.0
 inflection==0.5.1
@@ -38,7 +34,6 @@ pillow==12.2.0
 prompt_toolkit==3.0.50
 psycopg2-binary==2.9.10
 PyJWT==2.9.0
-pyogrio==0.10.0
 pyproj==3.7.1
 python-dateutil==2.9.0.post0
 python-dotenv==1.0.1

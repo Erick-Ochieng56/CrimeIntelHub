@@ -1,5 +1,29 @@
 # Unified GIS runtime for local + production (Linux).
 # Avoids Windows GDAL wheels entirely — same image everywhere.
+# Builder compiles wheels; the final image keeps runtime shared libraries only.
+
+FROM python:3.11-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgdal-dev \
+        libgeos-dev \
+        libproj-dev \
+        build-essential \
+        libpq-dev \
+        g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+
 FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -8,18 +32,17 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System GIS + Postgres client (GDAL/GEOS/PROJ for GeoDjango)
+# Runtime GIS + Postgres client. GeoDjango loads libgdal via ctypes (no osgeo package).
+# Bookworm names: libgdal32, libgeos-c1v5, libproj25, libpq5.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gdal-bin \
-        libgdal-dev \
-        libgeos-dev \
-        libproj-dev \
+        libgdal32 \
+        libgeos-c1v5 \
+        libproj25 \
+        libpq5 \
         postgresql-client \
-        build-essential \
-        libpq-dev \
         curl \
-        g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Build-time env so Django can import during image build if needed
@@ -38,10 +61,11 @@ ENV SECRET_KEY=$SECRET_KEY \
     DB_HOST=$DB_HOST \
     DEBUG=$DEBUG
 
+COPY --from=builder /wheels /wheels
 COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
-    && pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir "GDAL==$(gdal-config --version)"
+    && pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels
 
 COPY . .
 RUN mkdir -p logs media staticfiles \
@@ -54,4 +78,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "3", "--timeout", "120", "crime_analysis.wsgi:application"]
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "120", "crime_analysis.wsgi:application"]
