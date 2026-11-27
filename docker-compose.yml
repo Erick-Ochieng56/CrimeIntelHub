@@ -43,6 +43,11 @@ x-backend-env: &backend-env
   # Background worker queue (defaults to the REDIS_URL above)
   CELERY_BROKER_URL: redis://redis:6379/1
   CELERY_RESULT_BACKEND: redis://redis:6379/1
+  # 1 = Django runserver (local). Unset/0 = gunicorn (production default).
+  DJANGO_DEV_SERVER: ${DJANGO_DEV_SERVER:-0}
+  GUNICORN_WORKERS: ${GUNICORN_WORKERS:-3}
+  GUNICORN_THREADS: ${GUNICORN_THREADS:-2}
+  GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
 
 services:
   db:
@@ -92,8 +97,8 @@ services:
         condition: service_healthy
     # Avoid Windows CRLF shebang break when ./backend is bind-mounted
     entrypoint: ["sh", "-c", "sed -i 's/\\r$//' /app/docker-entrypoint.sh && exec sh /app/docker-entrypoint.sh \"$$@\"", "--"]
-    # Dev server without auto-reload avoids ERR_EMPTY_RESPONSE during file watches
-    command: ["python", "manage.py", "runserver", "0.0.0.0:8000", "--noreload"]
+    # gunicorn by default; DJANGO_DEV_SERVER=1 in .env runs Django's dev server instead
+    command: ["web"]
 
   # Background worker: ETL imports and alert notification emails
   worker:

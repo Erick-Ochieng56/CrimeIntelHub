@@ -2,7 +2,7 @@
 # Avoids Windows GDAL wheels entirely — same image everywhere.
 # Builder compiles wheels; the final image keeps runtime shared libraries only.
 
-FROM python:3.11-slim-bookworm AS builder
+FROM python:3.11-slim-trixie AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -24,7 +24,7 @@ RUN pip install --no-cache-dir --upgrade pip \
     && pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
 
-FROM python:3.11-slim-bookworm
+FROM python:3.11-slim-trixie
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -33,13 +33,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Runtime GIS + Postgres client. GeoDjango loads libgdal via ctypes (no osgeo package).
-# Bookworm names: libgdal32, libgeos-c1v5, libproj25, libpq5.
+# Debian trixie ships GDAL 3.10 (Django's gis.W001 check wants 3.9+), GEOS 3.13, PROJ 9.6.
+# gdal-bin pulls in the matching libgdal, libgeos-c and libproj runtime libraries.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         gdal-bin \
-        libgdal32 \
-        libgeos-c1v5 \
-        libproj25 \
         libpq5 \
         postgresql-client \
         curl \
@@ -74,4 +72,5 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD curl -f http://localhost:8000/health/ || exit 1
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "1", "--timeout", "120", "crime_analysis.wsgi:application"]
+# "web" starts gunicorn (or Django's dev server when DJANGO_DEV_SERVER=1); see docker-entrypoint.sh
+CMD ["web"]
