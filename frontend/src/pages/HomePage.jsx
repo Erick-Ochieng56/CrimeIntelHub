@@ -150,7 +150,7 @@ const HomePage = () => {
       <div className="mt-16">
         <h2 className="text-2xl font-bold text-gray-900">Data Sources</h2>
         <p className="mt-4 text-lg text-gray-600 max-w-3xl">
-          Our system integrates crime data directly from law enforcement agencies. The information is regularly extracted from each department's records system to ensure you're viewing the most current data available.
+          Our system integrates crime data directly from law enforcement agencies. The information is regularly extracted from each department&apos;s records system to ensure you&apos;re viewing the most current data available.
         </p>
         
         <div className="mt-8 bg-gray-50 p-6 rounded-lg border border-gray-200">

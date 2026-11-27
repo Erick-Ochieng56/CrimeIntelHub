@@ -1,11 +1,17 @@
 from rest_framework import permissions
 
+
+def is_platform_admin(user):
+    """Admin rights come from Django staff/superuser flags only, never from user_type."""
+    return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser))
+
+
 class IsAdminUser(permissions.BasePermission):
     """
     Permission for system administrators
     """
     def has_permission(self, request, view):
-        return request.user.is_authenticated and (request.user.user_type == 'admin' or request.user.is_staff)
+        return is_platform_admin(request.user)
 
 class IsAgencyUser(permissions.BasePermission):
     def has_permission(self, request, view):
@@ -24,7 +30,7 @@ class IsAgencyMemberOrAdmin(permissions.BasePermission):
     or is an admin
     """
     def has_object_permission(self, request, view, obj):
-        if request.user.user_type == 'admin' or request.user.is_staff:
+        if is_platform_admin(request.user):
             return True
             
         # Check if object has agency attribute and user belongs to that agency
@@ -42,4 +48,4 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
             return True
         
         # Write permissions are only allowed to the owner of the object
-        return obj.owner == request.user or request.user.is_staff or request.user.user_type == 'admin' or request.user.is_superuser
+        return obj.owner == request.user or is_platform_admin(request.user)

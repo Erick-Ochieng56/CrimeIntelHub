@@ -181,7 +181,7 @@ const PredictiveAnalysis = () => {
 
           <div className="text-sm text-gray-600 mb-4">
             <p>
-              <span className="font-medium">Instructions:</span> Select a date and crime type, then click "Generate Prediction"
+              <span className="font-medium">Instructions:</span> Select a date and crime type, then click &quot;Generate Prediction&quot;
               to analyze potential crime hotspots. You can also click on the map to select a specific area for analysis.
             </p>
             {selectedLocation && (

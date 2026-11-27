@@ -114,7 +114,7 @@ const Profile = () => {
     if (!passwordData.newPassword) {
       errors.newPassword = 'New password is required';
     } else if (!validatePassword(passwordData.newPassword)) {
-      errors.newPassword = 'Password must be at least 8 characters and include a number, uppercase letter, lowercase letter, and special character';
+      errors.newPassword = 'Password must be at least 12 characters and include a number, uppercase letter, lowercase letter, and special character';
     }
     
     if (passwordData.newPassword !== passwordData.confirmPassword) {
@@ -453,7 +453,7 @@ const Profile = () => {
                         <label htmlFor="alertPush" className="font-medium text-gray-700">
                           Push notifications
                         </label>
-                        <p className="text-gray-500">In-browser notifications when you're using the application</p>
+                        <p className="text-gray-500">In-browser notifications when you&apos;re using the application</p>
                       </div>
                     </div>
                   </div>

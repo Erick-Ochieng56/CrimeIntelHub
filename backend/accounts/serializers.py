@@ -48,7 +48,8 @@ class UserSerializer(serializers.ModelSerializer):
             'sms_notifications', 'profile', 'preferences', 'agency_name',
             'is_staff', 'is_superuser'
         )
-        read_only_fields = ('id', 'is_staff', 'is_superuser')
+        # user_type is a privilege field: only admin views may change it (via save kwargs)
+        read_only_fields = ('id', 'user_type', 'is_staff', 'is_superuser')
 
     def get_agency_name(self, obj):
         """Get the agency name if user is associated with an agency."""

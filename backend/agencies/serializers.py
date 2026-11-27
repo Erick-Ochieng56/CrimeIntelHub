@@ -59,10 +59,13 @@ class AgencyAdminSerializer(serializers.ModelSerializer):
         read_only_fields = ('id', 'created_at', 'updated_at', 'last_data_upload')
 
 class AgencySerializer(GeoFeatureModelSerializer):
-    """Serializer for agencies with GIS support."""
+    """Serializer for agencies with GIS support.
+
+    Readable by any signed-in user, so it must not expose credentials.
+    API keys and import logs are served by the owner-checked api_keys and
+    import_logs actions; staff use AgencyAdminSerializer.
+    """
     contacts = AgencyContactSerializer(many=True, read_only=True)
-    api_keys = APIKeySerializer(many=True, read_only=True)
-    import_logs = DataImportLogSerializer(many=True, read_only=True)
 
     class Meta:
         model = Agency
@@ -73,10 +76,13 @@ class AgencySerializer(GeoFeatureModelSerializer):
             'state', 'zip_code', 'country', 'headquarters_location',
             'jurisdiction_area', 'jurisdiction_description',
             'data_sharing_agreement', 'api_endpoint', 'api_key',
-            'data_format', 'contacts', 'api_keys', 'import_logs',
+            'data_format', 'contacts',
             'created_at', 'updated_at', 'last_data_upload'
         )
-        read_only_fields = ('id', 'created_at', 'updated_at', 'last_data_upload')
+        # status changes go through the admin approve/reject/disable/enable actions
+        read_only_fields = ('id', 'status', 'created_at', 'updated_at', 'last_data_upload')
+        # The agency's external API key can be set by its owner but is never returned
+        extra_kwargs = {'api_key': {'write_only': True}}
 
 class AgencyListSerializer(GeoFeatureModelSerializer):
     """Simplified serializer for agency listings."""

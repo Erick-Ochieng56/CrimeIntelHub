@@ -55,7 +55,7 @@ const PasswordReset = () => {
     if (!password) {
       newErrors.password = 'Password is required';
     } else if (!validatePassword(password)) {
-      newErrors.password = 'Password must be at least 8 characters and include a number, uppercase letter, lowercase letter, and special character';
+      newErrors.password = 'Password must be at least 12 characters and include a number, uppercase letter, lowercase letter, and special character';
     }
     
     if (password !== confirmPassword) {
