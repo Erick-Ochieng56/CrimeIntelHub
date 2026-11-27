@@ -21,5 +21,25 @@ if [ "${RUN_COLLECTSTATIC:-1}" = "1" ]; then
   python manage.py collectstatic --noinput
 fi
 
+# "web" is the HTTP server. Production uses gunicorn; DJANGO_DEV_SERVER=1 switches to
+# Django's dev server for local work. Any other command (celery etc.) runs as given.
+if [ "${1:-web}" = "web" ]; then
+  if [ "${DJANGO_DEV_SERVER:-0}" = "1" ]; then
+    set -- python manage.py runserver 0.0.0.0:8000 --noreload
+  else
+    set -- gunicorn crime_analysis.wsgi:application \
+      --bind "0.0.0.0:8000" \
+      --workers "${GUNICORN_WORKERS:-3}" \
+      --threads "${GUNICORN_THREADS:-2}" \
+      --timeout "${GUNICORN_TIMEOUT:-120}" \
+      --graceful-timeout "${GUNICORN_GRACEFUL_TIMEOUT:-30}" \
+      --max-requests "${GUNICORN_MAX_REQUESTS:-1000}" \
+      --max-requests-jitter "${GUNICORN_MAX_REQUESTS_JITTER:-100}" \
+      --log-level "${GUNICORN_LOG_LEVEL:-info}" \
+      --access-logfile - \
+      --error-logfile -
+  fi
+fi
+
 echo "Starting: $*"
 exec "$@"

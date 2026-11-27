@@ -37,6 +37,11 @@ if DEBUG:
 elif not ALLOWED_HOSTS:
     raise ValueError("ALLOWED_HOSTS must be configured in production")
 
+# Docker HEALTHCHECK curls http://localhost:8000/health/ (Host: localhost or 127.0.0.1).
+# Compose and nginx reach the app as Host: backend. Keep these working even when
+# ALLOWED_HOSTS is only the public domain.
+ALLOWED_HOSTS = list(dict.fromkeys(ALLOWED_HOSTS + ['localhost', '127.0.0.1', 'backend']))
+
 # Application definition
 
 INSTALLED_APPS = [
