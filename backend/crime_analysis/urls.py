@@ -11,8 +11,8 @@ from drf_yasg import openapi
 from django.http import HttpResponse, JsonResponse
 from django.db import connection
 from django.core.cache import cache
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
+from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
+from rest_framework.throttling import AnonRateThrottle
 import redis
 import time
 import json
@@ -211,10 +211,26 @@ def home_page(request):
     return HttpResponse(html)
 
 
-@csrf_exempt
-@require_http_methods(['POST'])
+class FrontendErrorLogThrottle(AnonRateThrottle):
+    """Per-IP limit for the public error log endpoint (applies to all callers)."""
+    scope = 'frontend_errors'
+    rate = '30/minute'
+
+    def get_cache_key(self, request, view):
+        return self.cache_format % {'scope': self.scope, 'ident': self.get_ident(request)}
+
+
+FRONTEND_ERROR_MAX_BYTES = 20000
+
+
+@api_view(['POST'])
+@authentication_classes([])
+@permission_classes([permissions.AllowAny])
+@throttle_classes([FrontendErrorLogThrottle])
 def log_frontend_error(request):
     """Simple endpoint for frontend ErrorBoundary / client error logging."""
+    if len(request.body) > FRONTEND_ERROR_MAX_BYTES:
+        return JsonResponse({'status': 'too_large'}, status=413)
     try:
         payload = json.loads(request.body.decode('utf-8') or '{}')
     except (json.JSONDecodeError, UnicodeDecodeError):

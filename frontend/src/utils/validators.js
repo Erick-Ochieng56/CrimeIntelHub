@@ -13,7 +13,7 @@ export const validateEmail = (email) => {
 };
 
 /**
- * Validate a password (at least 8 chars with at least one number, uppercase, lowercase, and special char)
+ * Validate a password (at least 12 chars, matching the backend MinimumLengthValidator, with at least one number, uppercase, lowercase, and special char)
  * 
  * @param {string} password - Password to validate
  * @returns {boolean} True if password meets requirements
@@ -22,7 +22,7 @@ export const validatePassword = (password) => {
   if (!password) return false;
   
   // Check minimum length
-  if (password.length < 8) return false;
+  if (password.length < 12) return false;
   
   // Check for at least one number
   if (!/\d/.test(password)) return false;

@@ -23,11 +23,20 @@ import json
 from django.db import transaction
 
 class IsAgencyUserOrReadOnly(permissions.BasePermission):
-    """Custom permission to allow agency users to edit agencies, read-only for others."""
+    """Read for any signed-in user; writes only by staff or a user of the agency itself."""
     def has_permission(self, request, view):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
         if request.method in permissions.SAFE_METHODS:
-            return bool(request.user and request.user.is_authenticated)
-        return bool(request.user and request.user.is_authenticated and request.user.user_type == 'agency')
+            return True
+        return bool(user.is_staff or (user.user_type == 'agency' and user.agency_id))
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in permissions.SAFE_METHODS:
+            return True
+        user = request.user
+        return bool(user.is_staff or (user.user_type == 'agency' and user.agency_id == obj.pk))
 
 class AgencyViewSet(viewsets.ModelViewSet):
     """API endpoint for agencies."""
@@ -46,7 +55,8 @@ class AgencyViewSet(viewsets.ModelViewSet):
     
     def get_permissions(self):
         """Return appropriate permissions based on action."""
-        if self.action in ['approve', 'reject', 'disable', 'enable']:
+        # Creating/deleting agencies and changing approval status are admin-only
+        if self.action in ['approve', 'reject', 'disable', 'enable', 'create', 'destroy']:
             return [IsAdminUser()]
         elif self.action in ['upload_data', 'api_keys', 'import_logs', 'generate_api_key', 'toggle_api_key']:
             return [IsAuthenticated(), IsAgencyUserOrReadOnly()]

@@ -45,7 +45,7 @@ PUBLIC_VISIBLE_STATUSES = Crime.PUBLIC_VISIBLE_STATUSES
 
 def _non_admin_status_q(user):
     """Status filter for non-staff/admin viewers (empty Q for staff/admin)."""
-    if user.is_authenticated and (user.is_staff or user.user_type == 'admin'):
+    if user.is_authenticated and (user.is_staff or user.is_superuser):
         return Q()
     return Q(status__in=PUBLIC_VISIBLE_STATUSES)
 
@@ -116,7 +116,7 @@ class CrimeViewSet(viewsets.ModelViewSet):
                     user.is_authenticated
                     and (
                         user.is_staff
-                        or user.user_type == 'admin'
+                        or user.is_superuser
                         or (
                             user.user_type == 'agency'
                             and user.agency

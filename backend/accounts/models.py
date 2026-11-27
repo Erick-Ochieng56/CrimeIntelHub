@@ -28,7 +28,7 @@ class User(AbstractUser):
     # Convenience properties
     @property
     def is_admin_user(self):
-        return self.user_type == 'admin' or self.is_staff
+        return self.is_staff or self.is_superuser
         
     @property
     def is_agency_user(self):

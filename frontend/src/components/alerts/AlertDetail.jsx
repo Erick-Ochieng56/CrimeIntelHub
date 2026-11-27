@@ -281,7 +281,7 @@ const AlertDetail = () => {
       >
         <div className="p-6">
           <p className="text-sm text-gray-500">
-            Are you sure you want to delete the alert "{alert.name}"? This action cannot be undone.
+            Are you sure you want to delete the alert &quot;{alert.name}&quot;? This action cannot be undone.
           </p>
           
           <div className="mt-6 flex justify-end space-x-3">

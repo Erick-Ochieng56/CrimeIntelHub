@@ -1,11 +1,15 @@
 """
 Views for accounts app.
 """
+import logging
+from urllib.parse import urlencode
+
 from django.contrib.auth.models import Group
 from django.contrib.auth import get_user_model, authenticate, logout
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import generics, permissions, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 from .models import PasswordResetToken
@@ -18,6 +22,7 @@ from .permissions import IsAdminUser, IsAgencyUser
 from agencies.models import Agency
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 AUTH_GROUP_NAMES = {
     'admin': 'Administrators',
@@ -190,10 +195,8 @@ class PasswordResetRequestView(generics.GenericAPIView):
                 ip_address=request.META.get('REMOTE_ADDR'),
                 user_agent=request.META.get('HTTP_USER_AGENT', ''),
             )
-            reset_url = (
-                f"{settings.FRONTEND_URL}/reset-password"
-                f"?token={token.token}&email={user.email}"
-            )
+            query = urlencode({'token': token.token, 'email': user.email})
+            reset_url = f"{settings.FRONTEND_URL}/reset-password?{query}"
             send_mail(
                 'Password Reset Request',
                 f'Click the following link to reset your password: {reset_url}',
@@ -203,6 +206,9 @@ class PasswordResetRequestView(generics.GenericAPIView):
             )
         except User.DoesNotExist:
             pass
+        except Exception:
+            # Same response either way, so a mail failure does not reveal that the account exists
+            logger.exception('Password reset email could not be sent')
         return Response({'detail': 'Password reset email sent.'})
 
 class PasswordResetConfirmView(generics.GenericAPIView):
@@ -300,7 +306,8 @@ class AdminUserManagement(generics.ListCreateAPIView):
         """Create a new user with specified role."""
         user_type = self.request.data.get('user_type', 'user')
         agency_id = self.request.data.get('agency')
-        user = serializer.save(user_type=user_type)
+        # Admin rights are granted via is_staff, which only staff can set here
+        user = serializer.save(user_type=user_type, is_staff=(user_type == 'admin'))
         if user_type == 'admin':
             group = get_auth_group(AUTH_GROUP_NAMES['admin'])
         elif user_type == 'agency':
@@ -329,6 +336,9 @@ class AdminUserDetail(generics.RetrieveUpdateDestroyAPIView):
         user = serializer.save()
         if user_type and user_type != user.user_type:
             user.user_type = user_type
+            # Keep is_staff in sync with the admin role (superusers keep their flag)
+            user.is_staff = user_type == 'admin' or user.is_superuser
+            user.save(update_fields=['user_type', 'is_staff'])
             user.groups.clear()
             if user_type == 'admin':
                 group = get_auth_group(AUTH_GROUP_NAMES['admin'])
@@ -371,9 +381,9 @@ class AgencyUserManagement(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         """Create a new agency user."""
         if 'user_type' in self.request.data and self.request.data['user_type'] != 'agency':
-            return Response({'error': 'Agency users can only create agency users'}, status=status.HTTP_403_FORBIDDEN)
-        if 'agency' in self.request.data and self.request.data['agency'] != str(self.request.user.agency.id):
-            return Response({'error': 'Cannot assign users to another agency'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied('Agency users can only create agency users')
+        if 'agency' in self.request.data and str(self.request.data['agency']) != str(self.request.user.agency.id):
+            raise PermissionDenied('Cannot assign users to another agency')
         user = serializer.save(user_type='agency', agency=self.request.user.agency)
         user_group = get_auth_group(AUTH_GROUP_NAMES['agency'])
         user.groups.add(user_group)
@@ -392,11 +402,11 @@ class AgencyUserDetail(generics.RetrieveUpdateDestroyAPIView):
     def perform_update(self, serializer):
         """Update user details, restrict critical fields."""
         if 'user_type' in self.request.data or 'agency' in self.request.data:
-            return Response({'error': 'Agency users cannot modify user_type or agency'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied('Agency users cannot modify user_type or agency')
         serializer.save(agency=self.request.user.agency)
 
     def perform_destroy(self, instance):
         """Prevent deletion of the requesting user."""
         if instance.id == self.request.user.id:
-            return Response({'error': 'Cannot delete your own account'}, status=status.HTTP_403_FORBIDDEN)
+            raise PermissionDenied('Cannot delete your own account')
         instance.delete()

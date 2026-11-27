@@ -3,6 +3,7 @@ Views for the crime_etl app.
 """
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
 from django_filters.rest_framework import DjangoFilterBackend
@@ -41,8 +42,12 @@ class DataSourceViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def test_connection(self, request, pk=None):
         """Test the connection to a data source."""
-        data_source = self.get_object()
-        return Response({"detail": "Connection test successful."})
+        self.get_object()
+        # No real connectivity check exists yet; say so instead of reporting success
+        return Response(
+            {"detail": "Connection testing is not implemented yet."},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )
 
 class ImportJobViewSet(viewsets.ModelViewSet):
     """API endpoint for import jobs."""
@@ -68,7 +73,8 @@ class ImportJobViewSet(viewsets.ModelViewSet):
         user = self.request.user
         data_source = serializer.validated_data.get('data_source')
         if data_source and data_source.created_by.agency != user.agency:
-            return Response({'error': 'Invalid data source for your agency'}, status=status.HTTP_403_FORBIDDEN)
+            # perform_create return values are ignored by DRF, so raise instead
+            raise PermissionDenied('Invalid data source for your agency')
         serializer.save(created_by=user, started_at=timezone.now())
 
     @action(detail=True, methods=['post'])
@@ -207,5 +213,9 @@ class ScheduledImportViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def run_now(self, request, pk=None):
         """Run a scheduled import immediately."""
-        scheduled_import = self.get_object()
-        return Response({"detail": "Import has been queued."})
+        self.get_object()
+        # Nothing dispatches imports yet (no task queue); do not claim it was queued
+        return Response(
+            {"detail": "Running scheduled imports on demand is not implemented yet."},
+            status=status.HTTP_501_NOT_IMPLEMENTED,
+        )

@@ -174,9 +174,10 @@ export const isSupported = (feature) => {
       return 'serviceWorker' in navigator;
     case 'webshare':
       return 'share' in navigator;
-    case 'webp':
+    case 'webp': {
       const canvas = document.createElement('canvas');
       return canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    }
     case 'touch':
       return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
     default:
