@@ -58,6 +58,8 @@ class ImportJob(models.Model):
     records_failed = models.IntegerField(default=0)
     error_message = models.TextField(blank=True, null=True)
     error_details = models.JSONField(default=list, blank=True, null=True)
+    task_id = models.CharField(max_length=255, blank=True, default='',
+                               help_text="Celery task id of the background run")
     created_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:

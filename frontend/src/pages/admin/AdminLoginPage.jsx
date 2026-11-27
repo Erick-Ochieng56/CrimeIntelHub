@@ -25,7 +25,7 @@ const AdminLoginPage = () => {
     try {
       await adminLogin(formData.username, formData.password, false);
       toast.success('Admin login successful!');
-    } catch (error) {
+    } catch {
       toast.error('Invalid administrator credentials.');
     } finally {
       setIsSubmitting(false);

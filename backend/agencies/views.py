@@ -1,7 +1,6 @@
 """
 Views for agencies app.
 """
-from django.utils.decorators import method_decorator
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
 from dateutil.relativedelta import relativedelta

@@ -5,7 +5,7 @@ import logging
 from urllib.parse import urlencode
 
 from django.contrib.auth.models import Group
-from django.contrib.auth import get_user_model, authenticate, logout
+from django.contrib.auth import get_user_model, logout
 from django.core.mail import send_mail
 from django.conf import settings
 from rest_framework import generics, permissions, status

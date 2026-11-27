@@ -4,7 +4,6 @@ from django.utils import timezone
 from crimes.models import Crime, CrimeCategory, District, Neighborhood
 from agencies.models import Agency
 import random
-from datetime import timedelta
 
 class Command(BaseCommand):
     help = 'Seed crime incidents for 2021 to 2024 based on 2017-2020 statistics'

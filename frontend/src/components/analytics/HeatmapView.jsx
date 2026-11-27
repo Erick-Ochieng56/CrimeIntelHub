@@ -52,7 +52,7 @@ const HeatmapLayer = ({ points, intensity = 8, radius = 25, blur = 15 }) => {
 };
 
 const HeatmapView = () => {
-  const [mapCenter, setMapCenter] = useState([-4.0435, 39.6682]); // Default to Mombasa
+  const [mapCenter] = useState([-4.0435, 39.6682]); // Default to Mombasa
   const [dateRange, setDateRange] = useState({
     startDate: new Date(new Date().setMonth(new Date().getMonth() - 1)),
     endDate: new Date(),
@@ -116,7 +116,6 @@ const HeatmapView = () => {
   ]) : [];
 
   const loading = heatmapQuery.isLoading;
-  const error = heatmapQuery.error;
 
   // Update dateRange when time period changes
   useEffect(() => {
@@ -176,8 +175,9 @@ const HeatmapView = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
+              <label htmlFor="heatmapview-time-period" className="block text-sm font-medium text-gray-700 mb-1">Time Period</label>
               <select
+                id="heatmapview-time-period"
                 value={selectedTimePeriod}
                 onChange={(e) => setSelectedTimePeriod(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -190,7 +190,7 @@ const HeatmapView = () => {
 
             {selectedTimePeriod === 'custom' && (
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Custom Date Range</label>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Custom Date Range</span>
                 <div className="flex space-x-2">
                   <DatePicker
                     selected={dateRange.startDate}
@@ -264,7 +264,7 @@ const HeatmapView = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Crime Types</label>
+            <span className="block text-sm font-medium text-gray-700 mb-1">Crime Types</span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-1">
               {crimeTypes.map((type) => (
                 <div key={type.value} className="flex items-center">

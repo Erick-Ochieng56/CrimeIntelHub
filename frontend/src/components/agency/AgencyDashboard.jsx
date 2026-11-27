@@ -1,14 +1,12 @@
 // AgencyDashboard.jsx
 // This component serves as the main dashboard for agency users, allowing them to manage data integration and API keys.
 import React, { useState } from 'react';
-import { useAuth } from '../../hooks/useAuth';
 import Card from '../common/Card';
 import Button from '../common/Button';
 import DataIntegrationForm from './DataIntegrationForm';
 import APIKeyManager from './APIKeyManager';
 
 const AgencyDashboard = () => {
-  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('overview');
 
   return (

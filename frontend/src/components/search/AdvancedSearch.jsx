@@ -109,6 +109,8 @@ const AdvancedSearch = () => {
     ) {
       handleSearch(false);
     }
+    // Deliberately only on pagination changes; new filters run through the Search button
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams.page, searchParams.limit]);
   
   return (

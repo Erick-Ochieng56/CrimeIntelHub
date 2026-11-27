@@ -297,13 +297,13 @@ const Register = () => {
                   <div className="ml-3 text-sm">
                     <label htmlFor="agreeTerms" className="font-medium text-gray-700">
                       I agree to the{' '}
-                      <a href="#" className="text-blue-600 hover:text-blue-500">
+                      <span className="text-blue-600">
                         Terms and Conditions
-                      </a>{' '}
+                      </span>{' '}
                       and{' '}
-                      <a href="#" className="text-blue-600 hover:text-blue-500">
+                      <span className="text-blue-600">
                         Privacy Policy
-                      </a>
+                      </span>
                     </label>
                     {errors.agreeTerms && (
                       <p className="mt-1 text-sm text-red-600">{errors.agreeTerms}</p>

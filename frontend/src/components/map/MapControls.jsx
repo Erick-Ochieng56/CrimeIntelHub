@@ -90,7 +90,7 @@ const MapControls = ({ onFilterChange, filters, onRefresh }) => {
               <h3 className="text-lg font-medium text-gray-900">Filters</h3>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Date Range</label>
+                <span className="block text-sm font-medium text-gray-700 mb-1">Date Range</span>
                 <div className="flex items-center space-x-2">
                   <DatePicker
                     selected={dateRange.startDate}

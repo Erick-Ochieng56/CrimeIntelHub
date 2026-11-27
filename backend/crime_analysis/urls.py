@@ -13,7 +13,6 @@ from django.db import connection
 from django.core.cache import cache
 from rest_framework.decorators import api_view, authentication_classes, permission_classes, throttle_classes
 from rest_framework.throttling import AnonRateThrottle
-import redis
 import time
 import json
 import logging

@@ -8,8 +8,6 @@ from .models import (
     CrimeMedia, CrimeNote, CrimeStatistic
 )
 from django.contrib.gis.geos import Point
-from rest_framework_gis.fields import GeometryField
-from rest_framework_gis.serializers import GeoModelSerializer as GeoJSONSerializer
 
 
 class CrimeCategorySerializer(serializers.ModelSerializer):

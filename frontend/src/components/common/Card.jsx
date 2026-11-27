@@ -38,8 +38,31 @@ const Card = ({
   // Combine all styles
   const cardStyles = `${baseStyles} ${shadowStyles} ${borderStyles} ${paddingStyles} ${variantStyles[variant]} ${interactiveStyles} ${className}`;
   
+  // Clickable cards behave like buttons for keyboard users too
+  const handleKeyDown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onClick(event);
+    }
+  };
+
+  if (onClick) {
+    return (
+      <div
+        className={cardStyles}
+        role="button"
+        tabIndex={0}
+        onClick={onClick}
+        onKeyDown={handleKeyDown}
+        {...rest}
+      >
+        {children}
+      </div>
+    );
+  }
+
   return (
-    <div className={cardStyles} onClick={onClick} {...rest}>
+    <div className={cardStyles} {...rest}>
       {children}
     </div>
   );

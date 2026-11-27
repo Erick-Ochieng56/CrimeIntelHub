@@ -7,7 +7,6 @@ import os
 from pathlib import Path
 from datetime import timedelta
 import dotenv
-from urllib.parse import urlparse
 
 # Load environment variables from .env file
 dotenv.load_dotenv()
@@ -210,9 +209,14 @@ REST_FRAMEWORK = {
         # Map viewport pans generate many requests; keep prod limits generous
         'anon': '2000/hour',
         'user': '10000/hour',
+        # OSRM route proxy (maps.views.RouteProxyThrottle)
+        'routing': os.environ.get('ROUTING_THROTTLE_RATE', '600/hour'),
     },
     'EXCEPTION_HANDLER': 'crime_analysis.utils.custom_exception_handler',
 }
+
+# drf-yasg: use the new renderer format names (no '.' prefix)
+SWAGGER_USE_COMPAT_RENDERERS = False
 
 # JWT settings
 SIMPLE_JWT = {
@@ -297,9 +301,28 @@ if _TRUST_X_FORWARDED_PROTO:
 else:
     USE_X_FORWARDED_HOST = False
 
-# Email settings
+# Cookies are HTTPS-only outside local development
+CSRF_COOKIE_SECURE = not DEBUG
+
+# HTTPS redirect is normally done at the edge (Cloudflare "Always Use HTTPS").
+# Set SECURE_SSL_REDIRECT=True to also redirect in Django; it needs
+# TRUST_X_FORWARDED_PROTO=True behind a proxy, otherwise requests loop.
+SECURE_SSL_REDIRECT = os.environ.get('SECURE_SSL_REDIRECT', 'False') == 'True'
+SECURE_REDIRECT_EXEMPT = [r'^health/$']
+SILENCED_SYSTEM_CHECKS = [] if SECURE_SSL_REDIRECT else ['security.W008']
+
+# Email settings. Console backend by default (mail is printed, not sent).
+# For real delivery set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+# plus EMAIL_HOST, EMAIL_PORT, EMAIL_HOST_USER and EMAIL_HOST_PASSWORD.
 EMAIL_BACKEND = os.environ.get('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'noreply@crimespace.org')
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '587'))
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True') == 'True'
+EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+EMAIL_TIMEOUT = int(os.environ.get('EMAIL_TIMEOUT', '10'))
 
 # Frontend URL for password reset links etc.
 FRONTEND_URL = os.environ.get('FRONTEND_URL', 'http://localhost:3000')
@@ -363,6 +386,32 @@ CACHES = {
         "KEY_PREFIX": "crime_analysis",
         "TIMEOUT": 300,  # 5 minutes default
     }
+}
+
+# Celery (background worker). Uses the same Redis as the cache unless overridden.
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', REDIS_URL)
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', REDIS_URL)
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_RESULT_EXPIRES = 60 * 60 * 24
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_TASK_TRACK_STARTED = True
+CELERY_TASK_TIME_LIMIT = 60 * 60
+CELERY_TASK_SOFT_TIME_LIMIT = 55 * 60
+CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# Run tasks inline (no worker). Useful for tests or a single-process setup.
+CELERY_TASK_ALWAYS_EAGER = os.environ.get('CELERY_TASK_ALWAYS_EAGER', 'False') == 'True'
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BEAT_SCHEDULE = {
+    'run-due-scheduled-imports': {
+        'task': 'crime_etl.tasks.run_due_scheduled_imports',
+        'schedule': 300.0,  # every 5 minutes
+    },
+    'send-alert-digests': {
+        'task': 'crime_alerts.tasks.send_notification_digests',
+        'schedule': 900.0,  # every 15 minutes
+    },
 }
 
 # Session configuration

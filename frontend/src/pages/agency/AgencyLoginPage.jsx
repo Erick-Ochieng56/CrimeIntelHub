@@ -22,7 +22,7 @@ const AgencyLoginPage = () => {
       await login(formData.username, formData.password, formData.remember, 'agency');
       toast.success('Agency login successful!');
       navigate('/agency/dashboard');
-    } catch (error) {
+    } catch {
       toast.error('Invalid agency credentials.');
     } finally {
       setIsSubmitting(false);

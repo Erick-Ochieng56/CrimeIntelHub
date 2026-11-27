@@ -76,7 +76,8 @@ const Dropdown = ({
   return (
     <div className="relative inline-block text-left" ref={dropdownRef}>
       {/* Dropdown trigger */}
-      <div onClick={toggleDropdown}>
+      {/* The trigger is normally a button, so keyboard activation bubbles up here */}
+      <div role="presentation" onClick={toggleDropdown}>
         {trigger}
       </div>
       

@@ -161,7 +161,7 @@ ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
 
 # Database Configuration
 DB_NAME=crime_analysis_db
-DB_USER=crime_analysis_user
+DB_USER=your-db-user
 DB_PASSWORD=your-secure-database-password
 DB_HOST=localhost
 DB_PORT=5432

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { getPublicSafetyAlerts, getAlertsByLocation } from '../../services/alertService';
-import Card from '../common/Card';
 import Loader from '../common/Loader';
 import { formatDate } from '../../utils/formatters';
 

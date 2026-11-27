@@ -1,11 +1,10 @@
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 from django.utils import timezone
 from crime_analytics.management.commands.predict import CrimePredictor
-from crime_analytics.models import CrimePrediction, PredictionModel, HotspotZone
-from crimes.models import CrimeCategory, District, Neighborhood
+from crime_analytics.models import CrimePrediction, PredictionModel
+from crimes.models import CrimeCategory, District
 from django.contrib.gis.geos import Point
 from datetime import datetime, timedelta
-import json
 
 
 class Command(BaseCommand):

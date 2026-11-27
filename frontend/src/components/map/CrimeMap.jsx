@@ -655,12 +655,21 @@ const CrimeMap = () => {
   const queryClient = useQueryClient();
 
   const viewportMode = viewportQuery.data?.mode || getMapTier(mapZoom);
-  const viewportResults = viewportQuery.data?.results || [];
   const viewportTotal = viewportQuery.data?.count ?? 0;
-  const crimes = viewportMode === 'points' ? viewportResults : [];
-  const aggregates = viewportMode === 'points' ? [] : viewportResults;
-  const summaries = summariesQuery.data?.results || [];
-  const exportedPoints = Array.isArray(exportedQuery.data) ? exportedQuery.data : [];
+  // Memoised so the arrays keep their identity between renders (stable hook deps)
+  const crimes = useMemo(
+    () => (viewportMode === 'points' ? viewportQuery.data?.results || [] : []),
+    [viewportMode, viewportQuery.data]
+  );
+  const aggregates = useMemo(
+    () => (viewportMode === 'points' ? [] : viewportQuery.data?.results || []),
+    [viewportMode, viewportQuery.data]
+  );
+  const summaries = useMemo(() => summariesQuery.data?.results || [], [summariesQuery.data]);
+  const exportedPoints = useMemo(
+    () => (Array.isArray(exportedQuery.data) ? exportedQuery.data : []),
+    [exportedQuery.data]
+  );
   const hotspots = hotspotsQuery.data || [];
   const loading =
     (viewMode === 'crimes' && viewportQuery.isLoading) ||

@@ -1,36 +1,38 @@
-import React from 'react';
+import React, { lazy, useContext } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { AuthContext } from './context/AuthContext';
-import { useContext } from 'react';
 
-// Pages
+// Loaded up front: the landing page, login and 404
 import HomePage from './pages/HomePage';
-import MapPage from './pages/MapPage';
-import DashboardPage from './pages/DashboardPage';
-import AnalyticsPage from './pages/AnalyticsPage';
-import AlertsPage from './pages/AlertsPage';
-import ReportsPage from './pages/ReportsPage';
-import SearchPage from './pages/SearchPage';
-import UserProfilePage from './pages/UserProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
+import Login from './components/user/Login';
+
+// Pages. Most are lazy-loaded so each route downloads its own chunk;
+// App.jsx wraps the routes in <Suspense>.
+const MapPage = lazy(() => import('./pages/MapPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const AlertsPage = lazy(() => import('./pages/AlertsPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const SearchPage = lazy(() => import('./pages/SearchPage'));
+const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 
 // Agency pages
-import AgencyRegistrationPage from './pages/agency/AgencyRegistrationPage';
-import AgencyRegistrationSuccessPage from './pages/agency/AgencyRegistrationSuccessPage';
-import AgencyLoginPage from './pages/agency/AgencyLoginPage';
-import AgencyDashboardPage from './pages/agency/AgencyDashboardPage';
+const AgencyRegistrationPage = lazy(() => import('./pages/agency/AgencyRegistrationPage'));
+const AgencyRegistrationSuccessPage = lazy(() => import('./pages/agency/AgencyRegistrationSuccessPage'));
+const AgencyLoginPage = lazy(() => import('./pages/agency/AgencyLoginPage'));
+const AgencyDashboardPage = lazy(() => import('./pages/agency/AgencyDashboardPage'));
 
 // ETL page
-import ETLPage from './pages/ETLPage';
+const ETLPage = lazy(() => import('./pages/ETLPage'));
 
 // Admin pages
-import AdminLoginPage from './pages/admin/AdminLoginPage';
-import AdminDashboardPage from './pages/admin/AdminDashboardPage';
+const AdminLoginPage = lazy(() => import('./pages/admin/AdminLoginPage'));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 
 // Auth components
-import Login from './components/user/Login';
-import Register from './components/user/Register';
-import PasswordReset from './components/user/PasswordReset';
+const Register = lazy(() => import('./components/user/Register'));
+const PasswordReset = lazy(() => import('./components/user/PasswordReset'));
 
 // Auth guard component
 const ProtectedRoute = ({ children }) => {

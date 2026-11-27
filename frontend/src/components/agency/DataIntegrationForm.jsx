@@ -89,10 +89,11 @@ const DataIntegrationForm = () => {
       </p>
       <form onSubmit={handleSubmit}>
         <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="dataintegrationform-upload-file" className="block text-sm font-medium text-gray-700 mb-2">
             Upload File
           </label>
           <input
+            id="dataintegrationform-upload-file"
             type="file"
             accept=".csv,.xlsx,.xls,.json"
             onChange={(e) =>
@@ -106,10 +107,11 @@ const DataIntegrationForm = () => {
         </div>
         <div className="grid grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dataintegrationform-start-date" className="block text-sm font-medium text-gray-700 mb-2">
               Start Date
             </label>
             <input
+              id="dataintegrationform-start-date"
               type="date"
               value={formData.startDate}
               onChange={(e) =>
@@ -119,10 +121,11 @@ const DataIntegrationForm = () => {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label htmlFor="dataintegrationform-end-date" className="block text-sm font-medium text-gray-700 mb-2">
               End Date
             </label>
             <input
+              id="dataintegrationform-end-date"
               type="date"
               value={formData.endDate}
               onChange={(e) =>

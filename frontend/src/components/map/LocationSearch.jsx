@@ -226,6 +226,7 @@ const LocationSearch = ({
           onFocus={() => setShowResults(true)}
           aria-autocomplete="list"
           aria-expanded={showDropdown}
+          aria-controls="location-search-results"
           role="combobox"
         />
         {searchTerm && (
@@ -243,7 +244,7 @@ const LocationSearch = ({
       </div>
 
       {showDropdown && (
-        <div className="absolute z-[600] mt-2 w-full bg-white shadow-xl rounded-xl py-1 text-sm overflow-hidden border border-gray-100 max-h-80 overflow-y-auto">
+        <div id="location-search-results" className="absolute z-[600] mt-2 w-full bg-white shadow-xl rounded-xl py-1 text-sm overflow-hidden border border-gray-100 max-h-80 overflow-y-auto">
           {onUseCurrentLocation && (
             <button
               type="button"
