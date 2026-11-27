@@ -45,19 +45,15 @@ RUN apt-get update \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Build-time env so Django can import during image build if needed
-ARG SECRET_KEY=build-only-not-for-runtime
+# Non-secret build-time defaults. SECRET_KEY, DB_USER and DB_PASSWORD are not baked
+# into the image; they must come from the runtime environment (docker compose / .env).
+# No build step imports Django, so the build does not need them.
 ARG REDIS_URL=redis://localhost:6379/0
 ARG DB_NAME=crime_analysis_db
-ARG DB_USER=crime_analysis_user
-ARG DB_PASSWORD=crime_analysis_password
 ARG DB_HOST=localhost
 ARG DEBUG=True
-ENV SECRET_KEY=$SECRET_KEY \
-    REDIS_URL=$REDIS_URL \
+ENV REDIS_URL=$REDIS_URL \
     DB_NAME=$DB_NAME \
-    DB_USER=$DB_USER \
-    DB_PASSWORD=$DB_PASSWORD \
     DB_HOST=$DB_HOST \
     DEBUG=$DEBUG
 
