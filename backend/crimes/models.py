@@ -7,7 +7,6 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from agencies.models import Agency
-from decimal import Decimal
 
 class CrimeCategory(models.Model):
     """Model for crime categories."""

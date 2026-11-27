@@ -4,13 +4,9 @@ import react from 'eslint-plugin-react';
 import reactHooks from 'eslint-plugin-react-hooks';
 import jsxA11y from 'eslint-plugin-jsx-a11y';
 
-// Accessibility findings are reported as warnings for now (44 existing hits), so they show
-// up in `npm run lint` without failing it. Tighten back to errors once they are fixed.
-const a11yAsWarnings = Object.fromEntries(
-  Object.entries(jsxA11y.configs.recommended.rules)
-    .filter(([, setting]) => (Array.isArray(setting) ? setting[0] : setting) !== 'off')
-    .map(([rule, setting]) => [rule, Array.isArray(setting) ? ['warn', ...setting.slice(1)] : 'warn'])
-);
+// Accessibility rules use the plugin's recommended levels (errors). The earlier
+// warnings-only setting is gone now that the existing findings are fixed.
+const a11yRules = jsxA11y.configs.recommended.rules;
 
 // Browser + Node globals used by the app and config files (inlined to avoid an extra dependency)
 const browserGlobals = Object.fromEntries(
@@ -54,7 +50,7 @@ export default [
     },
     rules: {
       ...react.configs.recommended.rules,
-      ...a11yAsWarnings,
+      ...a11yRules,
       'react/prop-types': 'off',
       'react/react-in-jsx-scope': 'off',
       'react-hooks/rules-of-hooks': 'error',
@@ -63,7 +59,7 @@ export default [
         varsIgnorePattern: '^_',
         argsIgnorePattern: '^_',
       }],
-      'jsx-a11y/anchor-is-valid': ['warn', {
+      'jsx-a11y/anchor-is-valid': ['error', {
         components: ['Link'],
         specialLink: ['to'],
       }],

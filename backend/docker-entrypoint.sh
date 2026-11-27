@@ -7,11 +7,14 @@ until pg_isready -h "${DB_HOST}" -p "${DB_PORT:-5432}" -U "${DB_USER}" -d "${DB_
 done
 echo "Postgres is ready."
 
-echo "Running migrations..."
-python manage.py migrate --noinput
+# The web container migrates; the Celery worker and beat set RUN_MIGRATIONS=0
+if [ "${RUN_MIGRATIONS:-1}" = "1" ]; then
+  echo "Running migrations..."
+  python manage.py migrate --noinput
 
-echo "Ensuring auth groups exist..."
-python manage.py create_auth_groups || true
+  echo "Ensuring auth groups exist..."
+  python manage.py create_auth_groups || true
+fi
 
 if [ "${RUN_COLLECTSTATIC:-1}" = "1" ]; then
   echo "Collecting static files..."

@@ -39,6 +39,7 @@ const Sidebar = ({ isMobileOpen, setIsMobileOpen }) => {
       {isMobileOpen && (
         <div
           className="fixed inset-0 z-20 bg-gray-600 bg-opacity-75 lg:hidden"
+          aria-hidden="true"
           onClick={() => setIsMobileOpen(false)}
         />
       )}

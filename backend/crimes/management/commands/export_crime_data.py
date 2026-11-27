@@ -2,11 +2,10 @@ from django.core.management.base import BaseCommand
 from django.contrib.gis.db.models.functions import Centroid
 from django.contrib.gis.measure import D
 from django.contrib.gis.geos import Point
-from django.db.models import Count, Sum, Q
-from crimes.models import Crime, Neighborhood, District, CrimeCategory
+from django.db.models import Count, Q
+from crimes.models import Crime, District
 import json
 import os
-from datetime import datetime
 
 class Command(BaseCommand):
     help = 'Export crime data with hierarchical structure (districts -> neighborhoods -> crime summaries)'

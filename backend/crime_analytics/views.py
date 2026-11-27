@@ -8,15 +8,12 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from django.contrib.gis.geos import Point
 from django.contrib.gis.measure import D
-from django.db.models import Count, Avg, Q
 from django.utils import timezone
 from .models import PredictionModel, HotspotZone, CrimePrediction, PatternAnalysis, DemographicCorrelation, CrimePredictionResult
 from .serializers import PredictionModelSerializer, HotspotZoneSerializer, CrimePredictionSerializer, PatternAnalysisSerializer, DemographicCorrelationSerializer
 from crimes.models import Crime
 from crimes.serializers import CrimeListSerializer
 from crime_analytics.ml_service import CrimePredictor
-from django.conf import settings
-import os
 
 class PredictionModelViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for prediction models."""

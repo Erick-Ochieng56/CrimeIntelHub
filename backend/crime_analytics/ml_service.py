@@ -8,10 +8,14 @@ from __future__ import annotations
 import logging
 import os
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import numpy as np
 from django.conf import settings
+
+if TYPE_CHECKING:  # heavy imports, only needed for type hints
+    import pandas as pd
+    from sklearn.ensemble import RandomForestClassifier
 
 logger = logging.getLogger(__name__)
 

@@ -19,7 +19,7 @@ const AgencyLogin = () => {
     try {
       await login(formData.email, formData.password, 'agency');
       navigate('/agency/dashboard');
-    } catch (err) {
+    } catch {
       setError('Invalid credentials');
     }
   };
@@ -36,8 +36,9 @@ const AgencyLogin = () => {
           )}
           <form onSubmit={handleSubmit}>
             <div className="mb-4">
-              <label className="block text-gray-700 mb-2">Email</label>
+              <label htmlFor="agencylogin-email" className="block text-gray-700 mb-2">Email</label>
               <input
+                id="agencylogin-email"
                 type="email"
                 className="w-full border rounded px-3 py-2"
                 value={formData.email}
@@ -46,8 +47,9 @@ const AgencyLogin = () => {
               />
             </div>
             <div className="mb-6">
-              <label className="block text-gray-700 mb-2">Password</label>
+              <label htmlFor="agencylogin-password" className="block text-gray-700 mb-2">Password</label>
               <input
+                id="agencylogin-password"
                 type="password"
                 className="w-full border rounded px-3 py-2"
                 value={formData.password}

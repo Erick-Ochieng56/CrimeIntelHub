@@ -290,9 +290,9 @@ const SearchFilters = ({ filters, onFilterChange, onSearch }) => {
         </div>
         
         <div>
-          <label className="block text-sm font-medium text-gray-700">
+          <span className="block text-sm font-medium text-gray-700">
             Date Range
-          </label>
+          </span>
           <div className="mt-1 grid grid-cols-2 gap-3">
             <div>
               <DatePicker
@@ -326,9 +326,9 @@ const SearchFilters = ({ filters, onFilterChange, onSearch }) => {
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-gray-700">
+        <span className="block text-sm font-medium text-gray-700">
           Crime Types
-        </label>
+        </span>
         <div className="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2">
           {crimeTypes.map((type) => (
             <div key={type.value} className="flex items-center">

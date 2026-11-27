@@ -54,11 +54,11 @@ const Modal = ({
   if (!isOpen) return null;
   
   return createPortal(
-    <div 
-      className="fixed inset-0 z-50 overflow-y-auto" 
-      aria-labelledby="modal-title" 
-      role="dialog" 
-      aria-modal="true"
+    // Backdrop wrapper: clicks outside the panel close it (Escape is handled above).
+    // The dialog role and labels live on the panel itself.
+    <div
+      className="fixed inset-0 z-50 overflow-y-auto"
+      role="presentation"
       onClick={handleOutsideClick}
     >
       <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">

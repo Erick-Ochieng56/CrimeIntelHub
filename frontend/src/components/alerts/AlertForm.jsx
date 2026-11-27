@@ -98,11 +98,11 @@ const AlertForm = ({ existingAlert = null }) => {
   // Update alert with position changes
   useEffect(() => {
     if (position) {
-      setAlert({
-        ...alert,
+      setAlert((prev) => ({
+        ...prev,
         latitude: position[0],
         longitude: position[1]
-      });
+      }));
     }
   }, [position]);
   
@@ -408,9 +408,9 @@ const AlertForm = ({ existingAlert = null }) => {
               </div>
               
               <div className="sm:col-span-6">
-                <label className="block text-sm font-medium text-gray-700">
+                <span className="block text-sm font-medium text-gray-700">
                   Map Location *
-                </label>
+                </span>
                 <div className="mt-1 h-96 rounded-md overflow-hidden border border-gray-300">
                   <MapContainer 
                     center={mapCenter} 

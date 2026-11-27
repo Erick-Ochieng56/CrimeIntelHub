@@ -4,12 +4,9 @@ Script to create sample data for the Crime Analysis System.
 Run this script to populate the database with test data.
 """
 import os
-import sys
 import django
 import random
 import datetime
-from django.contrib.gis.geos import Point
-from django.utils import timezone
 
 # Setup Django environment
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'crime_analysis.settings')

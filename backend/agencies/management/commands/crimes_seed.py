@@ -4,7 +4,6 @@ from django.utils import timezone
 from crimes.models import Crime, CrimeCategory, District, Neighborhood
 from agencies.models import Agency
 import random
-from datetime import timedelta
 
 class Command(BaseCommand):
     help = 'Seed initial crime incidents based on statistics'

@@ -21,24 +21,52 @@ class DataSourceSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'created_by', 'created_at', 'updated_at']
 
 
+MAX_IMPORT_FILE_BYTES = 20 * 1024 * 1024
+IMPORT_FILE_EXTENSIONS = ('.csv', '.json', '.geojson')
+
+
 class ImportJobSerializer(serializers.ModelSerializer):
-    """Serializer for ImportJob model."""
+    """Serializer for ImportJob model.
+
+    Imports run in the background: create returns the job with status "pending"
+    and the client polls GET /api/etl/imports/{id}/ for progress.
+    """
     
     data_source_name = serializers.StringRelatedField(source='data_source', read_only=True)
+    file = serializers.FileField(write_only=True, required=False,
+                                 help_text="CSV or JSON file to import (max 20 MB)")
     
     class Meta:
         model = ImportJob
         fields = [
-            'id', 'data_source', 'data_source_name', 'file_path', 'parameters',
-            'status', 'started_at', 'completed_at', 'records_processed',
+            'id', 'data_source', 'data_source_name', 'file', 'file_path', 'parameters',
+            'status', 'task_id', 'started_at', 'completed_at', 'records_processed',
             'records_created', 'records_updated', 'records_failed',
             'error_message', 'error_details', 'created_by', 'created_at'
         ]
+        # file_path is set by the server from the upload, never by the client,
+        # so a job can't point at another agency's files.
         read_only_fields = [
-            'id', 'started_at', 'completed_at', 'records_processed',
-            'records_created', 'records_updated', 'records_failed',
+            'id', 'file_path', 'status', 'task_id', 'started_at', 'completed_at',
+            'records_processed', 'records_created', 'records_updated', 'records_failed',
             'error_message', 'error_details', 'created_by', 'created_at'
         ]
+
+    def validate_file(self, value):
+        name = (value.name or '').lower()
+        if not name.endswith(IMPORT_FILE_EXTENSIONS):
+            raise serializers.ValidationError('Upload a .csv, .json or .geojson file.')
+        if value.size > MAX_IMPORT_FILE_BYTES:
+            raise serializers.ValidationError('Import files can be at most 20 MB.')
+        return value
+
+    def validate(self, attrs):
+        source = attrs.get('data_source')
+        if source is not None and not attrs.get('file') and source.source_type != 'api':
+            raise serializers.ValidationError(
+                {'file': 'Upload a file for this data source (only API sources can import without one).'}
+            )
+        return attrs
 
 
 class ExportJobSerializer(serializers.ModelSerializer):

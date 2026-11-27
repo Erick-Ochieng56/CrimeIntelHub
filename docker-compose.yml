@@ -8,6 +8,42 @@
 # reachable from this machine (local dev, host tools) but not from the internet.
 # In production, nginx reaches the backend over the internal Docker network.
 
+x-backend-env: &backend-env
+  # Safe default: production unless DEBUG=True is set explicitly
+  DEBUG: ${DEBUG:-False}
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
+  DB_NAME: ${DB_NAME:-crime_analysis_db}
+  DB_USER: ${DB_USER:?DB_USER must be set in .env}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+  DB_HOST: db
+  DB_PORT: "5432"
+  DB_SSLMODE: ${DB_SSLMODE:-disable}
+  REDIS_URL: redis://redis:6379/0
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000}
+  ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,backend}
+  FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+  # Opt-in; empty default. Set in root .env for Cloudflare/proxy HTTPS deploys.
+  TRUST_X_FORWARDED_PROTO: ${TRUST_X_FORWARDED_PROTO:-}
+  CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+  # Self-hosted OSRM (compose profile `routing`); proxy returns 503 if down
+  OSRM_URL: ${OSRM_URL:-http://osrm:5000}
+  # Empty = use system libs inside the image (no Windows paths)
+  GDAL_LIBRARY_PATH: ""
+  GEOS_LIBRARY_PATH: ""
+  # Outgoing email (alert notifications, password resets). Console backend prints
+  # mail to the logs; set EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+  # and the EMAIL_HOST* values in .env for real delivery.
+  EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+  DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@crimespace.org}
+  EMAIL_HOST: ${EMAIL_HOST:-localhost}
+  EMAIL_PORT: ${EMAIL_PORT:-587}
+  EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+  EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+  EMAIL_USE_TLS: ${EMAIL_USE_TLS:-True}
+  # Background worker queue (defaults to the REDIS_URL above)
+  CELERY_BROKER_URL: redis://redis:6379/1
+  CELERY_RESULT_BACKEND: redis://redis:6379/1
+
 services:
   db:
     # Multi-arch (amd64 + arm64); official postgis/postgis is amd64-only
@@ -42,27 +78,7 @@ services:
   backend:
     build: ./backend
     environment:
-      # Safe default: production unless DEBUG=True is set explicitly
-      DEBUG: ${DEBUG:-False}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
-      DB_NAME: ${DB_NAME:-crime_analysis_db}
-      DB_USER: ${DB_USER:?DB_USER must be set in .env}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
-      DB_HOST: db
-      DB_PORT: "5432"
-      DB_SSLMODE: ${DB_SSLMODE:-disable}
-      REDIS_URL: redis://redis:6379/0
-      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000,http://localhost:5000}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0,backend}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
-      # Opt-in; empty default. Set in root .env for Cloudflare/proxy HTTPS deploys.
-      TRUST_X_FORWARDED_PROTO: ${TRUST_X_FORWARDED_PROTO:-}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
-      # Self-hosted OSRM (compose profile `routing`); proxy returns 503 if down
-      OSRM_URL: ${OSRM_URL:-http://osrm:5000}
-      # Empty = use system libs inside the image (no Windows paths)
-      GDAL_LIBRARY_PATH: ""
-      GEOS_LIBRARY_PATH: ""
+      <<: *backend-env
     volumes:
       - ./backend:/app
       - backend_static:/app/staticfiles
@@ -78,6 +94,52 @@ services:
     entrypoint: ["sh", "-c", "sed -i 's/\\r$//' /app/docker-entrypoint.sh && exec sh /app/docker-entrypoint.sh \"$$@\"", "--"]
     # Dev server without auto-reload avoids ERR_EMPTY_RESPONSE during file watches
     command: ["python", "manage.py", "runserver", "0.0.0.0:8000", "--noreload"]
+
+  # Background worker: ETL imports and alert notification emails
+  worker:
+    build: ./backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "0"
+      RUN_COLLECTSTATIC: "0"
+    volumes:
+      - ./backend:/app
+      - backend_media:/app/media
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "sed -i 's/\\r$$//' /app/docker-entrypoint.sh && exec sh /app/docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["celery", "-A", "crime_analysis", "worker", "-l", "info", "--concurrency", "${CELERY_CONCURRENCY:-2}"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A crime_analysis inspect ping -d celery@$$HOSTNAME --timeout 10 || exit 1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 30s
+    restart: unless-stopped
+
+  # Scheduler: runs due scheduled imports and alert email digests
+  beat:
+    build: ./backend
+    environment:
+      <<: *backend-env
+      RUN_MIGRATIONS: "0"
+      RUN_COLLECTSTATIC: "0"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    entrypoint: ["sh", "-c", "sed -i 's/\\r$$//' /app/docker-entrypoint.sh && exec sh /app/docker-entrypoint.sh \"$$@\"", "--"]
+    command: ["celery", "-A", "crime_analysis", "beat", "-l", "info", "-s", "/tmp/celerybeat-schedule"]
+    # The image's HTTP health check is for the web server, not the scheduler
+    healthcheck:
+      disable: true
+    restart: unless-stopped
 
   frontend:
     build: ./frontend

@@ -1,13 +1,12 @@
 """
 Views for the maps app.
 """
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
+from rest_framework.throttling import SimpleRateThrottle
 from rest_framework.response import Response
 from rest_framework import status
-from django.contrib.gis.geos import Point
-from django.contrib.gis.measure import D
-from crimes.models import Crime, CrimeCategory, District, Neighborhood
+from crimes.models import Crime
 import datetime
 import json
 import os
@@ -17,6 +16,16 @@ import urllib.request
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+class RouteProxyThrottle(SimpleRateThrottle):
+    """Per-user (or per-IP) limit for the public OSRM proxy, applied even in DEBUG."""
+    scope = 'routing'
+
+    def get_cache_key(self, request, view):
+        user = getattr(request, 'user', None)
+        ident = user.pk if user is not None and user.is_authenticated else self.get_ident(request)
+        return self.cache_format % {'scope': self.scope, 'ident': ident}
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -164,6 +173,7 @@ def map_clusters(request):
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+@throttle_classes([RouteProxyThrottle])
 def route_proxy(request):
     """
     Proxy driving directions to self-hosted OSRM (avoids browser CORS).

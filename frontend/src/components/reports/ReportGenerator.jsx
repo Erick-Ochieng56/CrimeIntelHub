@@ -316,11 +316,12 @@ const ReportGenerator = () => {
               </div>
               
               <div className="sm:col-span-3">
-                <label className="block text-sm font-medium text-gray-700">
+                <label htmlFor="report-start-date" className="block text-sm font-medium text-gray-700">
                   Start Date
                 </label>
                 <div className="mt-1">
                   <DatePicker
+                    id="report-start-date"
                     selected={reportParams.startDate}
                     onChange={(date) => setReportParams({ ...reportParams, startDate: date })}
                     selectsStart
@@ -333,11 +334,12 @@ const ReportGenerator = () => {
               </div>
               
               <div className="sm:col-span-3">
-                <label className="block text-sm font-medium text-gray-700">
+                <label htmlFor="report-end-date" className="block text-sm font-medium text-gray-700">
                   End Date
                 </label>
                 <div className="mt-1">
                   <DatePicker
+                    id="report-end-date"
                     selected={reportParams.endDate}
                     onChange={(date) => setReportParams({ ...reportParams, endDate: date })}
                     selectsEnd
@@ -467,9 +469,9 @@ const ReportGenerator = () => {
               </div>
               
               <div className="sm:col-span-6">
-                <label className="block text-sm font-medium text-gray-700">
+                <span className="block text-sm font-medium text-gray-700">
                   Map Location *
-                </label>
+                </span>
                 <div className="mt-1 h-96 rounded-md overflow-hidden border border-gray-300">
                   <MapContainer 
                     center={mapCenter} 

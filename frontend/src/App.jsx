@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { useRoutes } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import routes from './routes';
@@ -17,7 +17,19 @@ const App = () => {
     );
   }
 
-  return <Layout>{routing}</Layout>;
+  return (
+    <Layout>
+      <Suspense
+        fallback={(
+          <div className="w-full py-24 flex items-center justify-center">
+            <Loader size="lg" />
+          </div>
+        )}
+      >
+        {routing}
+      </Suspense>
+    </Layout>
+  );
 };
 
 export default App;

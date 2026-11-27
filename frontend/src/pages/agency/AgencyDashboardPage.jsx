@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../services/api'; // Import your configured API
 import { AuthContext } from '../../context/AuthContext'; // Import the auth context
@@ -53,12 +53,12 @@ const AgencyDashboardPage = () => {
   const [error, setError] = useState(null);
 
   // Get agency ID from context user or fallback to localStorage
-  const getAgencyId = () => {
+  const getAgencyId = useCallback(() => {
     if (user && user.agency_id) {
       return user.agency_id;
     }
     return localStorage.getItem('agency_id') || '1'; // Default to 1 for demo
-  };
+  }, [user]);
 
   useEffect(() => {
     const fetchAgencyData = async () => {
@@ -140,7 +140,7 @@ const AgencyDashboardPage = () => {
     };
 
     fetchAgencyData();
-  }, [user]);
+  }, [getAgencyId]);
 
   const handleFileChange = (e) => {
     setSelectedFile(e.target.files[0]);
@@ -290,10 +290,11 @@ const AgencyDashboardPage = () => {
           <h2 className="text-xl font-semibold mb-4">Upload Crime Data</h2>
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="agencydashboardpage-select-data-file-csv-excel-or-json" className="block text-sm font-medium text-gray-700 mb-2">
                 Select Data File (CSV, Excel, or JSON)
               </label>
               <input
+                id="agencydashboardpage-select-data-file-csv-excel-or-json"
                 type="file"
                 onChange={handleFileChange}
                 className="block w-full text-sm text-gray-500

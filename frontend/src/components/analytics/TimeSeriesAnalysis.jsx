@@ -3,9 +3,27 @@ import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
-import { getTimeSeriesData, getCrimes } from '../../services/crimeService';
+import { getCrimes } from '../../services/crimeService';
 import DatePicker from 'react-datepicker';
 import 'react-datepicker/dist/react-datepicker.css';
+
+
+// Chart.js time unit for an aggregation period
+const timeUnitFor = (period) => {
+  switch (period) {
+    case 'daily':
+      return 'day';
+    case 'weekly':
+      return 'week';
+    case 'quarterly':
+      return 'quarter';
+    case 'yearly':
+      return 'year';
+    case 'monthly':
+    default:
+      return 'month';
+  }
+};
 
 const TimeSeriesAnalysis = () => {
   const [timeSeriesData, setTimeSeriesData] = useState(null);
@@ -20,7 +38,7 @@ const TimeSeriesAnalysis = () => {
   });
   const [selectedCrimeTypes, setSelectedCrimeTypes] = useState([]);
   const [selectedLocation, setSelectedLocation] = useState('all');
-  const [mapCenter, setMapCenter] = useState([0, 0]); // Example map center coordinates
+  const [mapCenter] = useState([0, 0]); // Example map center coordinates
 
   const crimeTypes = [
     { value: 'THEFT', label: 'Theft' },
@@ -127,7 +145,7 @@ const TimeSeriesAnalysis = () => {
           x: {
             type: 'time',
             time: {
-              unit: getTimeUnit(),
+              unit: timeUnitFor(aggregationPeriod),
               displayFormats: {
                 day: 'MMM d, yyyy',
                 week: 'MMM d, yyyy',
@@ -178,26 +196,9 @@ const TimeSeriesAnalysis = () => {
         chartInstance.current.destroy();
       }
     };
-  }, [timeSeriesData]);
+  }, [timeSeriesData, aggregationPeriod]);
 
   // Helper function to get appropriate time unit for chart
-  const getTimeUnit = () => {
-    switch (aggregationPeriod) {
-      case 'daily':
-        return 'day';
-      case 'weekly':
-        return 'week';
-      case 'monthly':
-        return 'month';
-      case 'quarterly':
-        return 'quarter';
-      case 'yearly':
-        return 'year';
-      default:
-        return 'month';
-    }
-  };
-
   const handleCrimeTypeToggle = (type) => {
     if (selectedCrimeTypes.includes(type)) {
       setSelectedCrimeTypes(selectedCrimeTypes.filter(t => t !== type));
@@ -247,6 +248,8 @@ const TimeSeriesAnalysis = () => {
 
   useEffect(() => {
     fetchTimeSeriesData();
+    // Refetch only when the filters change; fetchTimeSeriesData is recreated every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateRange, selectedCrimeTypes, selectedLocation]);
 
   const handleApplyFilters = () => {
@@ -304,7 +307,7 @@ const TimeSeriesAnalysis = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
+              <span className="block text-sm font-medium text-gray-700 mb-1">Time Range</span>
               <div className="flex space-x-2">
                 <DatePicker
                   selected={dateRange.startDate}
@@ -331,8 +334,9 @@ const TimeSeriesAnalysis = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Aggregation</label>
+              <label htmlFor="timeseriesanalysis-aggregation" className="block text-sm font-medium text-gray-700 mb-1">Aggregation</label>
               <select
+                id="timeseriesanalysis-aggregation"
                 value={aggregationPeriod}
                 onChange={(e) => setAggregationPeriod(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -344,8 +348,9 @@ const TimeSeriesAnalysis = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+              <label htmlFor="timeseriesanalysis-location" className="block text-sm font-medium text-gray-700 mb-1">Location</label>
               <select
+                id="timeseriesanalysis-location"
                 value={selectedLocation}
                 onChange={(e) => setSelectedLocation(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
@@ -358,7 +363,7 @@ const TimeSeriesAnalysis = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Crime Types</label>
+            <span className="block text-sm font-medium text-gray-700 mb-1">Crime Types</span>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mt-1">
               {crimeTypes.map((type) => (
                 <div key={type.value} className="flex items-center">

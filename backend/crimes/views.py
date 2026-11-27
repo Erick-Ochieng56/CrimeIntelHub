@@ -1,6 +1,5 @@
 import datetime
 import logging
-from django.http import JsonResponse, FileResponse
 from django.conf import settings
 import os
 import json
@@ -9,23 +8,16 @@ from django.conf import settings
 from django.db.models import Count, Sum, Q, F, Min, Max
 from django.db.models.functions import TruncMonth
 from django.contrib.gis.geos import Point
-from django.contrib.gis.db.models.functions import Distance, Centroid
 from django.contrib.gis.measure import D
-from rest_framework import viewsets, permissions, status, filters, serializers
+from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action, api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.throttling import AnonRateThrottle
 from django.utils.decorators import method_decorator
 from django.views.decorators.cache import cache_page
-from django_filters.rest_framework import DjangoFilterBackend
 import django_filters
 from django.core.cache import cache
-import redis
-from rest_framework_gis.serializers import GeoModelSerializer as GeoJSONSerializer
-from rest_framework_gis.fields import GeometryField
-from django.http import FileResponse
-from io import BytesIO
 from .models import (
     CrimeCategory, District, Neighborhood, Crime,
     CrimeMedia, CrimeNote, CrimeStatistic
@@ -34,8 +26,7 @@ from .serializers import (
     CrimeCategorySerializer, CrimeMediaSerializer, CrimeNoteSerializer, DistrictSerializer, NeighborhoodSerializer,
     CrimeListSerializer, CrimeDetailSerializer, CrimeCreateSerializer,
     CrimeStatisticSerializer, CrimeHeatmapSerializer, CrimeSearchSerializer,
-    CrimeStatResponseSerializer, PublicCrimeSerializer, NeighborhoodCrimeSummarySerializer,
-    CrimeLightSerializer,
+    CrimeStatResponseSerializer, NeighborhoodCrimeSummarySerializer, CrimeLightSerializer,
 )
 from accounts.permissions import IsAgencyUser
 

@@ -4,7 +4,7 @@ from django.utils import timezone
 from crimes.models import Crime, CrimeCategory, CrimeMedia, CrimeNote, CrimeStatistic, District, Neighborhood
 from agencies.models import Agency
 import random
-from datetime import datetime, timedelta
+from datetime import datetime
 import secrets
 
 class Command(BaseCommand):

@@ -136,11 +136,6 @@ const HomePage = () => {
               <p className="mt-2 text-base text-gray-600">
                 We prioritize privacy by generalizing all address information by blocks to help ensure individual privacy while providing valuable data.
               </p>
-              <div className="mt-4">
-                <a href="#" className="text-blue-600 hover:text-blue-800 font-medium">
-                  Learn More →
-                </a>
-              </div>
             </div>
           </Card>
         </div>

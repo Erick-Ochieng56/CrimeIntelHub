@@ -54,8 +54,15 @@ class AlertNotificationViewSet(viewsets.ReadOnlyModelViewSet):
         if getattr(self, 'swagger_fake_view', False):
             return AlertNotification.objects.none()
         
-        """Return notifications for the current user."""
-        return AlertNotification.objects.filter(user=self.request.user)
+        """Return notifications for the current user.
+
+        Email delivery records are hidden unless asked for with
+        ?notification_type=email, so the in-app list has one entry per match.
+        """
+        queryset = AlertNotification.objects.filter(user=self.request.user)
+        if 'notification_type' not in self.request.query_params:
+            queryset = queryset.exclude(notification_type='email')
+        return queryset
     
     @action(detail=True, methods=['post'])
     def mark_as_read(self, request, pk=None):
@@ -71,17 +78,18 @@ class AlertNotificationViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=['post'])
     def mark_all_as_read(self, request):
         """Mark all notifications as read."""
-        unread = AlertNotification.objects.filter(
+        # Email rows track delivery, not reading; leave pending emails alone
+        unread = list(AlertNotification.objects.filter(
             user=self.request.user,
             status__in=['sent', 'pending']
-        )
+        ).exclude(notification_type='email'))
         now = timezone.now()
         for notification in unread:
             notification.status = 'read'
             notification.read_at = now
         
         AlertNotification.objects.bulk_update(unread, ['status', 'read_at'])
-        return Response({"status": "success", "count": unread.count()})
+        return Response({"status": "success", "count": len(unread)})
 
 class NotificationPreferenceViewSet(viewsets.ModelViewSet):
     """API endpoint for notification preferences."""
